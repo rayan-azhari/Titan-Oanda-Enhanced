@@ -1,0 +1,5 @@
+Status: SUCCESS
+Python: 3.14.2 (tags/v3.14.2:df79316, Dec  5 2025, 17:18:21) [MSC v.1944 64 bit (AMD64)]
+Platform: Windows-11-10.0.26200-SP0
+CWD: C:\Users\rayan\Desktop\Antigravity workspaces\Quant trating
+NautilusTrader: 1.222.0

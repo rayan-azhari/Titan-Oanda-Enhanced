@@ -2,36 +2,43 @@
 
 ## Goal
 
-Build a high-performance, deterministic `nautilus_oanda` adapter package using a **hybrid wrapper approach**.
+Build a high-performance, deterministic `nautilus_oanda` adapter package using a **hybrid wrapper approach**. This enables event-driven live trading directly from the Algo Engine.
 
-## Inputs
+## Architecture
 
-- OANDA v20 API Specification
-- `oandapyV20` library documentation
-- NautilusTrader `adapter_guide.md`
+The adapter connects NautilusTrader's abstract interfaces to OANDA's v20 REST and Streaming APIs.
 
-## Execution Steps
+| Component | Nautilus Interface | OANDA Endpoint | Implementation |
+|---|---|---|---|
+| **Instruments** | `InstrumentProvider` | `GET /v3/accounts/{id}/instruments` | `execution/nautilus_oanda/instruments.py` |
+| **Data** | `LiveDataClient` | `GET /v3/accounts/{id}/pricing/stream` | `execution/nautilus_oanda/data.py` |
+| **Execution** | `LiveExecutionClient` | `POST /v3/accounts/{id}/orders` | `execution/nautilus_oanda/execution.py` |
 
-### Phase 1 — Instrumentation
+## Implementation Details
 
-- Call `execution/parse_oanda_instruments.py` to generate `oanda_instrument_provider.py`.
-- **Validation:** Run `tests/test_instrument_parsing.py` to assert `tick_size` accuracy.
+### Phase 1 — Instrumentation (`instruments.py`)
+- Fetches all tradeable currency pairs.
+- Maps OANDA precision and margin rates to Nautilus `CurrencyPair` objects.
+- Handles `tick_size` resolution (e.g., 0.00001 for EUR/USD).
 
-### Phase 2 — Streaming Data
+### Phase 2 — Streaming Data (`data.py`)
+- Wraps `oandapyV20` streaming endpoints.
+- Runs blocking stream consumption in a separate thread (executor).
+- Pushes `QuoteTick` events to the Nautilus message bus.
+- **Constraint:** Uses `oandapyV20` for connection handling to maximize compatibility.
 
-- Implement `OandaDataClient` by wrapping the official `oandapyV20` streaming endpoints.
+### Phase 3 — Execution Logic (`execution.py`)
+- Handles order submission via `LiveExecutionClient`.
+- Maps Nautilus `Order` objects to OANDA JSON payload.
+- Listens to the **Transactions Stream** for execution reports (fills, cancels).
 
-> [!IMPORTANT]
-> **Constraint:** Do not implement raw `aiohttp` requests. Use the official library for connection handling, but map the output to Nautilus `QuoteTick`.
+### Phase 4 — Integration (`run_nautilus_live.py`)
+- New entry point `execution/run_nautilus_live.py`.
+- Configures `TradingNode` with the custom adapter components.
+- Loads instruments and starts the event loop.
 
-- Ensure exponential backoff logic is preserved for network resilience.
+## Validation
 
-### Phase 3 — Execution Logic
-
-- Implement `OandaExecutionClient`.
-- Map `order.client_order_id` → OANDA's `clientExtensions.id`.
-
-## Success Criteria
-
-- Successful connection to OANDA streaming API via the `oandapyV20` wrapper.
-- 100% pass rate on unit tests for instrument parsing and order mapping.
+- **Environment:** Requires `nautilus_trader` (Rust extension). verified installed.
+- **Unit Tests:** `tests/test_nautilus_instruments.py` (and others).
+- **Live Test:** `execution/run_nautilus_live.py` (interactive).

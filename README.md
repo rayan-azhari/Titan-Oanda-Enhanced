@@ -44,16 +44,25 @@ This project follows a **3-layer architecture** that separates *Probabilistic In
 │   ├── verify_connection.py       ← OANDA connection test
 │   ├── download_oanda_data.py     ← Historical H1/H4/D/W OHLC data
 │   ├── validate_data.py           ← Data quality checks
+│   ├── nautilus_oanda/            ← Custom NautilusTrader Adapter
+│   │   ├── config.py              ← Configuration
+│   │   ├── data.py                ← Streaming DataClient
+│   │   ├── execution.py           ← Order ExecutionClient
+│   │   ├── instruments.py         ← InstrumentProvider
+│   │   └── parsing.py             ← OANDA <-> Nautilus mapper
 │   ├── spread_model.py            ← Time-varying spread estimation
 │   ├── run_vbt_optimisation.py    ← VectorBT parameter sweep + OOS validation
 │   ├── mtf_confluence.py          ← Multi-timeframe signal alignment
 │   ├── build_ml_features.py       ← Feature matrix (X) + target (y) + MTF
 │   ├── train_ml_model.py          ← Walk-forward ML training
 │   ├── run_backtesting_validation.py ← Backtesting.py visual audit
+│   ├── train_ml_model.py          ← Walk-forward ML training
+│   ├── run_backtesting_validation.py ← Backtesting.py visual audit
 │   ├── run_ensemble.py            ← Multi-strategy signal aggregation
 │   ├── rate_limiter.py            ← Token bucket for OANDA API
-│   ├── parse_oanda_instruments.py ← Nautilus instrument provider
-│   ├── run_live.py                ← Live/paper trading engine
+│   ├── parse_oanda_instruments.py ← Legacy instrument parser
+│   ├── run_live.py                ← Legacy Python-only engine (placeholder)
+│   ├── run_nautilus_live.py       ← NautilusTrader Live Engine
 │   ├── kill_switch.py             ← Emergency: flatten all positions
 │   ├── build_docker_image.py      ← Docker container for GCE
 │   └── send_notification.py       ← Slack alert integration
@@ -105,10 +114,16 @@ uv run python execution/build_ml_features.py
 uv run python execution/train_ml_model.py
 ```
 
-### 6. Validate & Deploy
+### 6. Validate & Deploy (Legacy)
 ```bash
 uv run python execution/run_backtesting_validation.py
 uv run python execution/run_live.py --mode practice
+```
+
+### 7. NautilusTrader Live (Recommended)
+```bash
+# Ensure OANDA_ACCOUNT_ID and OANDA_ACCESS_TOKEN are set in .env
+uv run python execution/run_nautilus_live.py
 ```
 
 ## Research Tools

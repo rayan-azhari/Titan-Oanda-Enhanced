@@ -16,12 +16,10 @@ dependencies = [
     "backtesting>=0.3.3",
     "vectorbt>=0.26",
     "plotly>=5.20",
+    "nautilus_trader>=1.200",
 ]
 
 [project.optional-dependencies]
-nautilus = [
-    "nautilus_trader>=1.200",
-]
 vectorbt-pro = [
     "vectorbtpro",
 ]
