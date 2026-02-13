@@ -143,6 +143,7 @@ uv run python execution/run_nautilus_live.py
 - [x] Time-varying spread model
 - [x] Multi-timeframe confluence signals (H1 + H4 + D)
 - [x] Dockerization for cloud deployment
+- [ ] Configure Slack Alerts for live trading monitoring
 - [ ] VectorBT Pro upgrade for production-scale mining
 
 ## Rules of Engagement
