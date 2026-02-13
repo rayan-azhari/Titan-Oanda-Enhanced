@@ -171,7 +171,22 @@ uv run python execution/kill_switch.py
 
 ---
 
-## 🐳 Advanced: Running in the Cloud (Docker)
+## � Optional: Set Up Slack Alerts
+
+Want the bot to message you when it trades?
+
+1.  **Create a Slack App:** Go to [api.slack.com/apps](https://api.slack.com/apps) and click **Create New App** -> **From scratch**. Name it "Titan Bot" and pick your workspace.
+2.  **Activate Webhooks:** Click **Incoming Webhooks** in the sidebar and toggle it **On**.
+3.  **Add Webhook:** Click **Add New Webhook to Workspace**, pick a channel (e.g., `#trading-logs`), and click **Allow**.
+4.  **Copy the URL:** It looks like `https://hooks.slack.com/services/T000.../B000.../XXXX...`.
+5.  **Save it:** Add it to your `.env` file manually:
+    ```bash
+    SLACK_WEBHOOK_URL=https://hooks.slack.com/services/...
+    ```
+
+---
+
+## �🐳 Advanced: Running in the Cloud (Docker)
 
 If you want the bot to run 24/7 without your laptop being on, you use **Docker**.
 
