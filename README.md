@@ -2,6 +2,8 @@
 
 > A quantitative **swing trading** system for OANDA — ML-driven strategy discovery, VectorBT optimisation, NautilusTrader execution, and GCE deployment.
 
+📘 **[Read the User Guide](USER_GUIDE.md)** for complete setup and usage instructions.
+
 ---
 
 ## Architecture
@@ -114,10 +116,10 @@ uv run python execution/build_ml_features.py
 uv run python execution/train_ml_model.py
 ```
 
-### 6. Validate & Deploy (Legacy)
+### 7. Deployment (Docker)
 ```bash
-uv run python execution/run_backtesting_validation.py
-uv run python execution/run_live.py --mode practice
+uv run python execution/build_docker_image.py
+docker run --env-file .env titan-oanda-algo
 ```
 
 ### 7. NautilusTrader Live (Recommended)
@@ -140,6 +142,7 @@ uv run python execution/run_nautilus_live.py
 - [x] Ensemble / multi-strategy framework
 - [x] Time-varying spread model
 - [x] Multi-timeframe confluence signals (H1 + H4 + D)
+- [x] Dockerization for cloud deployment
 - [ ] VectorBT Pro upgrade for production-scale mining
 
 ## Rules of Engagement
