@@ -33,6 +33,7 @@ from execution.nautilus_oanda.config import OandaInstrumentProviderConfig
 from execution.nautilus_oanda.instruments import OandaInstrumentProvider
 from execution.nautilus_oanda.data import OandaDataClient
 from execution.nautilus_oanda.execution import OandaExecutionClient
+from strategies.simple_printer import SimplePrinter, SimplePrinterConfig
 
 # Configure basic logging for the Nautilus node
 # NautilusTrader uses structlog for structured logging capabilities
@@ -97,7 +98,16 @@ def main():
     for inst in instruments:
         node.add_instrument(inst)
 
-    # 5. Build & Run
+
+
+    # 5. Load Strategy
+    print("🧠 Instantiate and register strategy...")
+    strategy_config = SimplePrinterConfig()
+    # Instantiate the strategy using the node context
+    strategy = SimplePrinter(config=strategy_config)
+    node.add_strategy(strategy)
+
+    # 6. Build & Run
     print("🚀 Starting Trading Node...")
     
     # Register shutdown signal
