@@ -131,9 +131,12 @@ uv run python execution/build_docker_image.py
 docker run --env-file .env titan-oanda-algo
 ```
 
-### 8. NautilusTrader Live (Recommended)
+### 8. NautilusTrader Live
 ```bash
-# Ensure OANDA_ACCOUNT_ID and OANDA_ACCESS_TOKEN are set in .env
+# Deploys the latest trained model from models/ to OANDA live trading
+# - Auto-loads latest .joblib model
+# - Auto-warms up strategy with local Parquet data for instant readiness
+# - Ensures OANDA_ACCOUNT_ID and OANDA_ACCESS_TOKEN are set in .env
 uv run python execution/run_nautilus_live.py
 ```
 
@@ -183,7 +186,7 @@ If all pass locally with zero errors, CI will also pass.
 - [x] ML Strategy Discovery (XGBoost + Walk-Forward Validation)
 - [x] Dockerization for cloud deployment
 - [x] VBT → ML Feature Selection Bridge (auto-tune indicators, feed into ML)
-- [ ] Model → Live Engine Bridge (deploy .joblib models to NautilusTrader)
+- [x] Model → Live Engine Bridge (deploy .joblib models to NautilusTrader)
 - [ ] Configure Slack Alerts for live trading monitoring
 - [ ] VectorBT Pro upgrade for production-scale mining
 

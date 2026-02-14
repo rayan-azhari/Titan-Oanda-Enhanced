@@ -182,13 +182,15 @@ uv run python execution/run_nautilus_live.py
 ```
 
 **What Happens:**
-1.  **Logs:** You will see text scrolling in the console.
+1.  **Model Loading:** The system finds the latest `.joblib` model in `models/` and loads it.
+2.  **Smart Warmup:** It loads recent data history from `data/` so the strategy is ready to trade **immediately** (no waiting weeks for buffers to fill).
+3.  **Logs:** You will see text scrolling in the console.
     - `[INFO] NautilusTrader started...`
-    - `[INFO] Connected to OANDA...`
-    - `[INFO] SimplePrinter started...`
-2.  **Streaming:** You should see live quotes appearing:
+    - `[INFO] Loaded latest model: xgb_EUR_USD.joblib`
+    - `[INFO] Warmed up with 500 bars.`
+4.  **Streaming:** You should see live quotes appearing:
     - `QUOTE EUR_USD: 1.0850 / 1.0851`
-3.  **Trading:** If the strategy sees a signal, it will automatically place a trade.
+5.  **Trading:** If the model predicts a profitable move, it will automatically place a trade.
 
 **How to Stop:**
 Press `Ctrl + C` in the terminal.
