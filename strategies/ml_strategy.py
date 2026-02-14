@@ -77,9 +77,7 @@ class MLSignalStrategy(Strategy):
         parquet_path = project_root / "data" / f"{pair}_{gran}.parquet"
 
         if not parquet_path.exists():
-            self.log.warning(
-                f"⚠ Warmup file missing: {parquet_path}. Trading delayed."
-            )
+            self.log.warning(f"⚠ Warmup file missing: {parquet_path}. Trading delayed.")
             return
 
         self.log.info(f"Loading warmup data from {parquet_path}...")
