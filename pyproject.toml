@@ -20,9 +20,9 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-vectorbt-pro = [
-    "vectorbtpro",
-]
+# vectorbt-pro = [
+#     "vectorbtpro",
+# ]
 dev = [
     "pytest>=8.0",
     "ruff>=0.4",
