@@ -55,6 +55,7 @@ This project follows a **3-layer architecture** that separates *Probabilistic In
 │   ├── spread_model.py            ← Time-varying spread estimation
 │   ├── run_vbt_optimisation.py    ← VectorBT parameter sweep + OOS validation
 │   ├── mtf_confluence.py          ← Multi-timeframe signal alignment
+│   ├── run_feature_selection.py   ← VBT → ML Feature Selection Bridge
 │   ├── build_ml_features.py       ← Feature matrix (X) + target (y) + MTF
 │   ├── train_ml_model.py          ← Walk-forward ML training
 │   ├── run_backtesting_validation.py ← Backtesting.py visual audit
@@ -109,6 +110,7 @@ uv run python execution/verify_connection.py
 ```bash
 uv run python execution/fetch_eur_usd.py       # Download raw OHLCV
 uv run python execution/run_vbt_optimisation.py # Run VBT parameter sweep
+uv run python execution/run_feature_selection.py # Run Feature Selection Bridge
 uv run python execution/run_mtf_backtest.py    # Test MTF Confluence Strategy
 ```
 

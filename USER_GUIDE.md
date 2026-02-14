@@ -106,21 +106,61 @@ uv run python execution/run_vbt_optimisation.py
 
 ---
 
+## 🔗 Phase 3.5: Feature Selection Bridge (VBT → ML)
+
+This is the **Titan Sequence** — the bridge between simple backtesting and intelligent ML. Instead of feeding the ML model hardcoded indicators, we first use VBT to discover *which* indicator parameters actually work, then feed those into the ML pipeline automatically.
+
+**The Command:**
+```bash
+uv run python execution/run_feature_selection.py
+```
+
+**What it does:**
+1. **Single-TF Indicator Sweep** — Tests 7 indicator families across hundreds of parameter combos:
+
+   | Indicator | What it sweeps |
+   |---|---|
+   | RSI | Window 5–30, entry threshold 15–40 |
+   | SMA Cross | Fast 5–30, slow 20–100 |
+   | EMA Cross | Fast 5–25, slow 15–60 |
+   | MACD | Fast/slow/signal combinations |
+   | Bollinger | Window 10–30, std dev 1.5–3.0 |
+   | Stochastic | %K 5–21, %D 2–5 |
+   | ADX Filter | Period 10–25, threshold 20–30 |
+
+2. **MTF Confluence Sweep** — Tests higher-timeframe bias filters:
+   - Which TFs to use as context (D, W, or both)
+   - SMA fast/slow speeds on each higher TF
+   - RSI period and bullish/bearish threshold per TF
+
+3. **Scoring** — Each combo is backtested on both In-Sample (70%) and Out-of-Sample (30%) data. Scored by:
+   - `Stability = min(IS, OOS) / max(IS, OOS)` — penalises overfitting
+   - `Score = OOS_Sharpe × Stability` — rewards robust profitability
+
+4. **Auto-Config** — Writes the winning parameters to `config/features.toml`
+
+**Sanity Check:**
+- Open `config/features.toml` — you should see tuned values like `rsi = { window = 9, entry = 28 }`
+- Open `reports/feature_scoreboard_EUR_USD.json` — all indicators ranked by score
+
+---
+
 ## 🧠 Phase 4: Train the AI (Machine Learning)
 
-Simple rules (RSI < 30) are good, but AI is better. Let's teach a computer to predict the market.
+Simple rules (RSI < 30) are good, but AI is better. The ML pipeline now **automatically reads** the tuned parameters from `config/features.toml` (written by Phase 3.5). If the config doesn't exist, it falls back to sensible defaults.
 
-**Step 1: Create Features (The Inputs)**
-The AI needs to "see" the market. We calculate technical indicators for it.
+**The Command (full pipeline):**
 ```bash
-uv run python execution/build_ml_features.py
+uv run python execution/run_ml_strategy.py
 ```
 
-**Step 2: Train the Model (The Brain)**
-We teach the model using the past data.
-```bash
-uv run python execution/train_ml_model.py
-```
+**What it does:**
+1. Loads tuned indicator parameters from `config/features.toml`
+2. Builds a feature matrix (RSI, SMA, MACD, Bollinger, Stochastic, ADX, MTF bias) using those tuned params
+3. Engineers a 3-class target: LONG, SHORT, FLAT
+4. Trains XGBoost via walk-forward cross-validation
+5. Backtests ML predictions via VectorBT
+6. Saves the model if profitable
 
 **Sanity Check:**
 - Look in `models/`. You should see `.joblib` files (e.g., `xgb_EUR_USD.joblib`).
@@ -308,6 +348,12 @@ A: Run `uv run ruff check . --fix` locally. It auto-fixes most issues. For remai
 
 **Q: Tests pass locally but fail in CI**
 A: Check if you have `.env` variables that tests depend on. CI doesn't have your `.env` file, so tests requiring live OANDA credentials are auto-skipped. If tests fail for a different reason, check the CI logs for the exact error.
+
+**Q: Feature Selection sweep is slow**
+A: The sweep tests ~1,200+ parameter combos across 7 indicators + MTF confluence. On H4 data with ~2 years of history, expect 5–15 minutes per pair. To speed up, reduce the parameter ranges in `run_feature_selection.py` (e.g., widen the step sizes).
+
+**Q: `config/features.toml` shows all defaults, nothing tuned**
+A: No indicator passed the minimum OOS Sharpe threshold (0.3). This means the asset/timeframe may not have strong single-indicator signals. Try a different pair or timeframe, or lower `min_sharpe_oos`.
 
 ---
 

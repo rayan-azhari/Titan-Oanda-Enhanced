@@ -7,7 +7,8 @@ Train and validate a Machine Learning model to predict **price direction** (Clas
 ## Inputs
 
 - Raw Parquet data from `data/`
-- Feature definitions (e.g., RSI, SMA, Volatility, Time of Day)
+- Raw Parquet data from `data/`
+- Feature definitions from `config/features.toml` (auto-tuned by VBT)
 
 ## Execution Steps
 

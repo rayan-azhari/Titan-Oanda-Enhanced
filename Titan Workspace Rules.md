@@ -21,6 +21,7 @@ All agents must adhere to these constraints to ensure system integrity, financia
 |---|---|
 | **Determinism** | Set explicit random seeds (`random_state=42`) for all ML training to ensure reproducibility. |
 | **Data Leakage** | Features must be lagged. Targets must be future-derived. The Researcher must explicitly check for look-ahead bias before training. |
+| **Feature Selection** | ML models must consume features tuned by `run_feature_selection.py` (read from `config/features.toml`) whenever possible, rather than using arbitrary default parameters. |
 | **Storage** | Trained models are "Artifacts" and must be stored in `models/`, **not** `.tmp/`. |
 
 ---

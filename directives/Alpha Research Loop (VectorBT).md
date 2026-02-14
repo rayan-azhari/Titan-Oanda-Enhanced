@@ -56,6 +56,13 @@ Run `execution/validate_data.py` to check for gaps, duplicates, and outlier spik
 
 - Convert optimal parameters into `config/strategy_config.toml`.
 
+### 8. VBT → ML Bridge (Feature Selection)
+
+- Run `execution/run_feature_selection.py`.
+- Sweeps 7 indicator families + MTF confluence filters across parameter ranges.
+- Scores candidates by **Stability** = `min(IS, OOS) / max(IS, OOS)`.
+- Writes winning parameters to `config/features.toml` for the ML pipeline.
+
 > [!NOTE]
 > **Upgrade path:** If parameter space grows too large for the free VectorBT, upgrade to VectorBT Pro for `@vbt.chunked` memory management. The API is compatible.
 
