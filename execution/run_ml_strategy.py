@@ -39,6 +39,13 @@ except ImportError:
     vbt = None
     print("  ⚠ vectorbt not installed — VBT backtest will be skipped.")
 
+from sklearn.ensemble import GradientBoostingClassifier, RandomForestClassifier
+try:
+    import xgboost as xgb
+except ImportError:
+    xgb = None
+    print("  ⚠ xgboost not installed — XGBoost model will be skipped.")
+
 
 # ─────────────────────────────────────────────────────────────────────
 # Data Loading
@@ -115,8 +122,8 @@ def adx(df, period=14):
 # Feature Engineering
 # ─────────────────────────────────────────────────────────────────────
 
-def build_features(df: pd.DataFrame, pair: str) -> pd.DataFrame:
-    """Build comprehensive feature matrix from H4 OHLCV data."""
+def build_features(df: pd.DataFrame, context_data: dict[str, pd.DataFrame]) -> pd.DataFrame:
+    """Build comprehensive feature matrix from base data and context data."""
     close = df["close"]
     feats = pd.DataFrame(index=df.index)
 
@@ -152,33 +159,28 @@ def build_features(df: pd.DataFrame, pair: str) -> pd.DataFrame:
     # ── Price action (simplified) ──
     feats["range_pct"] = (df["high"] - df["low"]) / close
 
-    # Removed noisy features: body_ratio, wicks, hour, day_of_week
-    return feats
-
-
-def add_mtf_features(feats: pd.DataFrame, pair: str) -> pd.DataFrame:
-    """Add multi-timeframe confluence features from D and W data."""
-    for gran, prefix in [("D", "d"), ("W", "w")]:
-        df = load_ohlcv(pair, gran)
-        if df is None:
-            continue
-        close = df["close"]
+    # ── MTF Confluence ──
+    # context_data keys: "H4", "D", "W" etc.
+    for gran, context_df in context_data.items():
+        prefix = gran.lower()
+        ctx_close = context_df["close"]
 
         # Compute directional bias on higher TF
-        fast = sma(close, 10 if gran == "D" else 5)
-        slow = sma(close, 30 if gran == "D" else 13)
-        r = rsi(close, 14)
+        fast = sma(ctx_close, 10 if gran == "D" else 5)
+        slow = sma(ctx_close, 30 if gran == "D" else 13)
+        r = rsi(ctx_close, 14)
 
-        bias = pd.Series(0.0, index=close.index)
+        bias = pd.Series(0.0, index=ctx_close.index)
         bias += np.where(fast > slow, 0.5, -0.5)
         bias += np.where(r > 50, 0.5, -0.5)
 
-        # Reindex to H4 timeline via forward-fill
+        # Reindex to base timeline via forward-fill
+        # Important: reindex using the base timeline
         bias_aligned = bias.reindex(feats.index, method="ffill")
         feats[f"{prefix}_bias"] = bias_aligned
 
         # Trend strength
-        trend_str = ((fast - slow) / close).reindex(feats.index, method="ffill")
+        trend_str = ((fast - slow) / ctx_close).reindex(feats.index, method="ffill")
         feats[f"{prefix}_trend_str"] = trend_str
 
         # RSI
@@ -233,10 +235,6 @@ def walk_forward_splits(n: int, n_splits: int = 5, min_train: float = 0.4):
 
 def train_and_evaluate(X: pd.DataFrame, y: pd.Series, close: pd.Series):
     """Train ML models with walk-forward CV and return the best one."""
-    from sklearn.ensemble import (
-        GradientBoostingClassifier,
-        RandomForestClassifier,
-    )
     from sklearn.metrics import accuracy_score, classification_report
 
     models = {
@@ -251,15 +249,14 @@ def train_and_evaluate(X: pd.DataFrame, y: pd.Series, close: pd.Series):
     }
 
     # Try to add XGBoost
-    try:
-        from xgboost import XGBClassifier
-        models["XGBoost"] = XGBClassifier(
+    if xgb is not None:
+        models["XGBoost"] = xgb.XGBClassifier(
             n_estimators=300, max_depth=5, learning_rate=0.05,
             subsample=0.8, colsample_bytree=0.8,
             eval_metric="logloss", random_state=42,
             use_label_encoder=False,
         )
-    except ImportError:
+    else:
         print("  ⚠ XGBoost not installed — skipping.")
 
     splits = walk_forward_splits(len(X), n_splits=5)
@@ -269,7 +266,7 @@ def train_and_evaluate(X: pd.DataFrame, y: pd.Series, close: pd.Series):
     results = {}
 
     print(f"\n  {'─'*60}")
-    print(f"  🧠 Training {len(models)} models × {len(splits)} walk-forward folds")
+    print(f"  [TRAIN] Training {len(models)} models × 5 walk-forward folds")
     print(f"  {'─'*60}\n")
 
     for name, model in models.items():
@@ -357,6 +354,7 @@ def optimize_exits(
     close: pd.Series,
     preds: np.ndarray,
     stop_values: list[float] = [0.005, 0.01, 0.015, 0.02],
+    freq: str = "4h"
 ) -> dict:
     """Optimize exit strategy (Fixed vs Trailing Stop) using OOS signals."""
     if vbt is None:
@@ -372,7 +370,7 @@ def optimize_exits(
 
     results = []
     print(f"\n  {'─'*60}")
-    print(f"  🏁 Exit Optimization (OOS)")
+    print(f"  🏁 Exit Optimization (OOS) - Freq: {freq}")
     print(f"  {'─'*60}")
     print(f"  {'Type':<10} {'Stop':<8} {'Sharpe':<8} {'Return':<8} {'Trades':<6}")
 
@@ -386,14 +384,14 @@ def optimize_exits(
             short_exits=short_exits,
             sl_stop=sl,
             tp_stop=sl * 2.0,  # 1:2 Risk:Reward
-            init_cash=10_000, fees=0.0002, freq="4h"
+            init_cash=10_000, fees=0.0002, freq=freq
         )
         stats_fixed = {
             "type": "Fixed",
             "stop": sl,
             "sharpe": pf_fixed.sharpe_ratio(),
             "return": pf_fixed.total_return() * 100,
-            "trades": pf_fixed.trades.count(),
+            "trades": int(pf_fixed.trades.count()),
         }
         results.append(stats_fixed)
         print(f"  {stats_fixed['type']:<10} {stats_fixed['stop']:<8.3%} "
@@ -408,14 +406,14 @@ def optimize_exits(
             short_entries=short_entries,
             short_exits=short_exits,
             sl_trail=sl,  # Trailing stop
-            init_cash=10_000, fees=0.0002, freq="4h"
+            init_cash=10_000, fees=0.0002, freq=freq
         )
         stats_trail = {
             "type": "Trailing",
             "stop": sl,
             "sharpe": pf_trail.sharpe_ratio(),
             "return": pf_trail.total_return() * 100,
-            "trades": pf_trail.trades.count(),
+            "trades": int(pf_trail.trades.count()),
         }
         results.append(stats_trail)
         print(f"  {stats_trail['type']:<10} {stats_trail['stop']:<8.3%} "
@@ -423,6 +421,9 @@ def optimize_exits(
               f"{stats_trail['trades']:<6}")
 
     # Find best
+    if not results:
+        return {}
+    
     best = max(results, key=lambda x: x["sharpe"])
     print(f"\n  🏆 Best Exit: {best['type']} Stop {best['stop']:.1%} (Sharpe {best['sharpe']:.3f})")
     
@@ -430,20 +431,21 @@ def optimize_exits(
 
 
 def backtest_ml_predictions(
-    model, X: pd.DataFrame, close: pd.Series, split_pct: float = 0.70
+    model, X: pd.DataFrame, y: pd.Series, close: pd.Series, split_pct: float = 0.70, freq: str = "4h"
 ):
     """Run IS/OOS backtest of the ML model's predictions via VBT."""
     if vbt is None:
         print("  ⚠ VBT not available — skipping backtest.")
-        return
+        return {}
 
     split = int(len(X) * split_pct)
 
     # Train on IS, predict on OOS
     X_is, X_oos = X.iloc[:split], X.iloc[split:]
     close_is, close_oos = close.iloc[:split], close.iloc[split:]
+    y_is = y.iloc[:split]
 
-    model.fit(X_is, y_full.iloc[:split])  # noqa: F821 — y_full from caller scope
+    model.fit(X_is, y.iloc[:split]) 
     preds_oos = model.predict(X_oos)
 
     # 1. Base Backtest (Signal Only)
@@ -459,7 +461,7 @@ def backtest_ml_predictions(
 
     long_pf = vbt.Portfolio.from_signals(
         close_oos, entries=long_entries, exits=long_exits,
-        init_cash=10_000, fees=0.0002, freq="4h",
+        init_cash=10_000, fees=0.0002, freq=freq,
     )
     short_pf = vbt.Portfolio.from_signals(
         close_oos,
@@ -467,7 +469,7 @@ def backtest_ml_predictions(
         exits=pd.Series(False, index=close_oos.index),
         short_entries=short_entries,
         short_exits=short_exits,
-        init_cash=10_000, fees=0.0002, freq="4h",
+        init_cash=10_000, fees=0.0002, freq=freq,
     )
 
     print(f"\n  {'─'*60}")
@@ -484,7 +486,7 @@ def backtest_ml_predictions(
               f"MaxDD={dd:>6.2f}%  Trades={trades}  WR={wr:.1f}%")
 
     # 2. Exit Optimization
-    best_exit = optimize_exits(close_oos, preds_oos)
+    best_exit = optimize_exits(close_oos, preds_oos, freq=freq)
     return best_exit
 
 
@@ -492,28 +494,47 @@ def backtest_ml_predictions(
 # Main Pipeline
 # ─────────────────────────────────────────────────────────────────────
 
-def main() -> None:
-    """Run the full ML strategy discovery pipeline."""
-    pair = "EUR_USD"
-    primary_tf = "H4"
-
-    print(f"{'='*60}")
-    print(f"  🤖 ML Strategy Discovery — {pair} {primary_tf}")
+def run_pipeline(base_tf: str = "H4"):
+    """Run the full ML pipeline for a specific base timeframe."""
+    print(f"\n{'='*60}")
+    print(f"  [INFO] ML Strategy Discovery — EUR_USD {base_tf}")
     print(f"{'='*60}")
 
     # ── Step 1: Load data ──
     print(f"\n  Step 1: Loading data...")
-    df = load_ohlcv(pair, primary_tf)
+    data_dir = Path("data")
+    
+    # Load base timeframe
+    df = load_ohlcv("EUR_USD", base_tf)
     if df is None:
-        print(f"  ERROR: {pair}_{primary_tf}.parquet not found in data/")
-        sys.exit(1)
-    print(f"    {len(df)} bars ({df.index.min().date()} → {df.index.max().date()})")
+        print(f"  ❌ Error: Base data {base_tf} not found.")
+        return {}
+    df = df.sort_index()
+
+    # Load context timeframes (Higher TFs)
+    # If H1, context is H4, D, W
+    # If H4, context is D, W
+    context_data = {}
+    possible_contexts = ["H4", "D", "W"]
+    
+    # Only load contexts that are higher than base_tf
+    # Simple hierarchy: H1 < H4 < D < W
+    hierarchy = {"H1": 0, "H4": 1, "D": 2, "W": 3}
+    base_rank = hierarchy.get(base_tf, 0)
+
+    for tf in possible_contexts:
+        if hierarchy[tf] > base_rank:
+            ctx_df = load_ohlcv("EUR_USD", tf)
+            if ctx_df is not None:
+                context_data[tf] = ctx_df.sort_index()
+                print(f"    Loaded context: {tf} ({len(context_data[tf])} bars)")
+
+    print(f"    Base: {base_tf} ({len(df)} bars) {df.index.min().date()} → {df.index.max().date()}")
 
     # ── Step 2: Build features ──
     print(f"\n  Step 2: Building feature matrix...")
-    feats = build_features(df, pair)
-    feats = add_mtf_features(feats, pair)
-    print(f"    {feats.shape[1]} features built")
+    feats = build_features(df, context_data)
+    print(f"    {len(feats.columns)} features built")
 
     # ── Step 3: Build target ──
     print(f"\n  Step 3: Engineering target (3-class: LONG/SHORT/FLAT)...")
@@ -536,54 +557,92 @@ def main() -> None:
     print(f"    Target distribution:  LONG={n_long} ({n_long/len(target)*100:.1f}%)  "
           f"SHORT={n_short} ({n_short/len(target)*100:.1f}%)  "
           f"FLAT={n_flat} ({n_flat/len(target)*100:.1f}%)")
+    
+    if len(feats) < 100:
+        print("  ⚠ Not enough data to train. Skipping.")
+        return
 
     # ── Step 4: Train models ──
     print(f"\n  Step 4: Training ML models with walk-forward CV...")
-    global y_full
-    y_full = target
-
-    best_model, best_name, results, imp_df = train_and_evaluate(
-        feats, target, close_aligned,
+    
+    # Delegate to train_and_evaluate which handles the loop and best model selection
+    best_model, best_model_name, results, imp_df = train_and_evaluate(
+        feats, target, close_aligned
     )
+    best_model_score = results[best_model_name]["sharpe"]
+
+    print(f"\n  [BEST] Best model selected: {best_model_name} (Sharpe={best_model_score:.3f})")
 
     # ── Step 5: VBT Backtest ──
     print(f"\n  Step 5: Running VBT backtest on OOS period...")
-    split = int(len(feats) * 0.70)
-    X_is, X_oos = feats.iloc[:split], feats.iloc[split:]
-    close_is = close_aligned.iloc[:split]
-    close_oos = close_aligned.iloc[split:]
-    y_is = target.iloc[:split]
-
-    # Retrain on IS only, predict OOS
-    best_model.fit(X_is, y_is)
-    best_exit = backtest_ml_predictions(best_model, feats, close_aligned)
+    
+    # Run backtest/exit optimization
+    # Pass freq to ensure VBT calculates Sharpe correctly
+    freq_map = {"H1": "1h", "H4": "4h"}
+    vbt_freq = freq_map.get(base_tf, "1h")
+    
+    best_exit = backtest_ml_predictions(best_model, feats, target, close_aligned, freq=vbt_freq)
 
     # ── Step 6: Save model ──
     version = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
-    model_path = MODELS_DIR / f"ml_strategy_{best_name.lower()}_{version}.joblib"
+    model_path = Path("models") / f"ml_strategy_{base_tf}_{best_model_name.lower()}_{version}.joblib"
+    model_path.parent.mkdir(exist_ok=True)
     joblib.dump(best_model, model_path)
-    print(f"\n  💾 Model saved → {model_path.name}")
+    print(f"\n  [SAVE] Model saved → {model_path.name}")
 
     # Save report
     report = {
-        "pair": pair,
-        "timeframe": primary_tf,
-        "model": best_name,
-        "n_features": int(feats.shape[1]),
-        "n_samples": int(len(feats)),
-        "target_distribution": {"long": int(n_long), "short": int(n_short), "flat": int(n_flat)},
-        "model_results": {k: {kk: (vv if not isinstance(vv, np.floating) else float(vv))
-                              for kk, vv in v.items()} for k, v in results.items()},
-        "top_features": imp_df.head(15).to_dict(orient="records"),
+        "timestamp": version,
+        "base_tf": base_tf,
+        "model": best_model_name,
+        "sharpe_cv": best_model_score,
+        "best_exit": best_exit,
+        "features": list(feats.columns),
+        "target_dist": {"LONG": int(n_long), "SHORT": int(n_short), "FLAT": int(n_flat)},
     }
-    report_path = REPORTS_DIR / f"ml_strategy_{version}.json"
+    report_path = Path(".tmp/reports") / f"ml_strategy_{base_tf}_{version}.json"
+    report_path.parent.mkdir(parents=True, exist_ok=True)
     with open(report_path, "w") as f:
-        json.dump(report, f, indent=2, default=str)
-    print(f"  📄 Report saved → {report_path.name}")
+        json.dump(report, f, indent=2)
+    print(f"  [SAVE] Report saved → {report_path.name}")
 
     print(f"\n{'='*60}")
-    print(f"  ✅ ML Strategy Discovery Complete")
+    print(f"  [DONE] ML Strategy Discovery Complete")
     print(f"{'='*60}\n")
+
+
+def main():
+    # H1 tends to overfit (OOS Sharpe < 0), but kept for comparison.
+    target_timeframes = ["H4", "H1"]
+    results = []
+
+    for tf in target_timeframes:
+        try:
+            res = run_pipeline(tf)
+            if res:
+                results.append(res)
+        except Exception as e:
+             print(f"  [ERROR] Error processing {tf}: {e}")
+             import traceback
+             traceback.print_exc()
+
+    print(f"\n{'='*60}")
+    print(f"  Multi-Timeframe Scan Complete")
+    print(f"{'='*60}")
+    
+    print(f"  {'Timeframe':<10} {'Model':<18} {'Exit Type':<12} {'Stop':<8} {'Sharpe (OOS)':<12}")
+    print(f"  {'-'*60}")
+    
+    for res in results:
+        exit_strat = res.get('best_exit', {})
+        # Handle cases where best_exit might be empty or None
+        if not exit_strat:
+            continue
+            
+        print(f"  {res['base_tf']:<10} {res['model']:<18} "
+              f"{exit_strat.get('type', 'N/A'):<12} "
+              f"{exit_strat.get('stop', 0):<8.1%} "
+              f"{exit_strat.get('sharpe', 0.0):<12.3f}")
 
 
 if __name__ == "__main__":
