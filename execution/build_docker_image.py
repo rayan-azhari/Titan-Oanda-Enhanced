@@ -54,7 +54,7 @@ HEALTHCHECK --interval=60s --timeout=10s --retries=3 \\
     CMD python -c "print('OK')" || exit 1
 
 # Default: run the live trading engine in practice mode
-CMD ["uv", "run", "python", "execution/run_live.py", "--mode", "practice"]
+CMD ["uv", "run", "python", "execution/run_nautilus_live.py"]
 """
 
 

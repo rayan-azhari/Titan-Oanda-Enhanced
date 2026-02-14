@@ -69,7 +69,7 @@ def load_ohlcv(pair: str, gran: str) -> pd.DataFrame | None:
 
 # Import shared feature engineering logic
 from execution.ml_utils.features import (
-    load_feature_config,
+    atr,
     build_features,
 )
 

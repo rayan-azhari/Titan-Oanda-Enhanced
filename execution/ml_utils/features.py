@@ -193,7 +193,8 @@ def build_features(
     feats["ema_slope"] = ema(close, ema_periods[0]).diff() / close
 
     macd_cfg = trend.get("macd", {"fast": 12, "slow": 26, "signal": 9})
-    if macd_cfg is True: macd_cfg = {"fast": 12, "slow": 26, "signal": 9}
+    if macd_cfg is True:
+        macd_cfg = {"fast": 12, "slow": 26, "signal": 9}
     if isinstance(macd_cfg, dict):
         feats["macd_hist"] = macd_hist(
             close,
@@ -204,14 +205,13 @@ def build_features(
 
     # MA crossover (fast vs slow from SMA tuning)
     if len(sma_periods) >= 2:
-        feats["ma_cross"] = (
-            sma(close, sma_periods[0]) > sma(close, sma_periods[1])
-        ).astype(float)
+        feats["ma_cross"] = (sma(close, sma_periods[0]) > sma(close, sma_periods[1])).astype(float)
 
     # ── Momentum (tuned) ──
     rsi_cfg = momentum.get("rsi", {"window": 14})
-    if rsi_cfg is True: rsi_cfg = {"window": 14}
-    
+    if rsi_cfg is True:
+        rsi_cfg = {"window": 14}
+
     if isinstance(rsi_cfg, dict):
         rsi_win = rsi_cfg.get("window", 14)
         feats["rsi"] = rsi(close, rsi_win)
@@ -219,7 +219,8 @@ def build_features(
         feats["rsi_fast"] = rsi(close, max(5, rsi_win // 2))
 
     stoch_cfg = momentum.get("stochastic", {"k": 14, "d": 3})
-    if stoch_cfg is True: stoch_cfg = {"k": 14, "d": 3}
+    if stoch_cfg is True:
+        stoch_cfg = {"k": 14, "d": 3}
     if isinstance(stoch_cfg, dict):
         stoch_k, stoch_d = stochastic(
             df,
@@ -233,25 +234,23 @@ def build_features(
     feats["atr_14"] = atr(df, 14) / close
 
     bb_cfg = volatility.get("bollinger", {"window": 20, "std_dev": 2.0})
-    if bb_cfg is True: bb_cfg = {"window": 20, "std_dev": 2.0}
-    
+    if bb_cfg is True:
+        bb_cfg = {"window": 20, "std_dev": 2.0}
+
     if isinstance(bb_cfg, dict):
-        feats["boll_bw"] = bollinger_bw(
-            close, p=bb_cfg.get("window", 20)
-        )
+        feats["boll_bw"] = bollinger_bw(close, p=bb_cfg.get("window", 20))
     feats["close_std_20"] = close.rolling(20).std() / close
 
     adx_cfg = volatility.get("adx", {"period": 14})
-    if adx_cfg is True: adx_cfg = {"period": 14}
-    
+    if adx_cfg is True:
+        adx_cfg = {"period": 14}
+
     if isinstance(adx_cfg, dict):
         feats["adx"] = adx(df, period=adx_cfg.get("period", 14))
 
     # ── Volume ──
     if "volume" in df.columns:
-        feats["vol_ratio"] = (
-            df["volume"] / df["volume"].rolling(20).mean()
-        )
+        feats["vol_ratio"] = df["volume"] / df["volume"].rolling(20).mean()
         feats["vol_change"] = df["volume"].pct_change()
         feats["vol_rsi"] = rsi(df["volume"], 14)
 
@@ -281,9 +280,7 @@ def build_features(
         bias_aligned = bias.reindex(feats.index, method="ffill")
         feats[f"{prefix}_bias"] = bias_aligned
 
-        trend_str = (
-            (fast_ma - slow_ma) / ctx_close
-        ).reindex(feats.index, method="ffill")
+        trend_str = ((fast_ma - slow_ma) / ctx_close).reindex(feats.index, method="ffill")
         feats[f"{prefix}_trend_str"] = trend_str
 
         r_aligned = r.reindex(feats.index, method="ffill")

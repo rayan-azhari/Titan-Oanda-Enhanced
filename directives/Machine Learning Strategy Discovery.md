@@ -33,11 +33,8 @@ Train and validate a Machine Learning model to predict **price direction** (Clas
 
 - The best performing model (highest Validation Sharpe) is automatically saved to `models/` as a `.joblib` file.
 
-### 4. Model Serialisation
+### 4. Deployment
 
-- If Sharpe Ratio > **1.5** on the test set, save the trained model to `models/production_model_v1.joblib`.
-
-## Outputs
-
-- Trained Model File (`.joblib`) in `models/`
-- HTML Report: Feature Importance & Equity Curve
+- The saved model is automatically picked up by the live engine.
+- See: `directives/Live Deployment and Monitoring.md`
+- Run: `execution/run_nautilus_live.py`

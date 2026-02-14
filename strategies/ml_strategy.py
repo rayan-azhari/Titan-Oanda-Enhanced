@@ -71,13 +71,15 @@ class MLSignalStrategy(Strategy):
         # e.g. EUR/USD-H4 -> EUR_USD_H4.parquet
         pair = self.instrument_id.value.replace("/", "_")
         gran = self.bar_type.specifier.split("-")[-1] if "-" in self.bar_type.specifier else "H4"
-        
+
         # Determine project root relative to this file
         project_root = Path(__file__).resolve().parent.parent
         parquet_path = project_root / "data" / f"{pair}_{gran}.parquet"
 
         if not parquet_path.exists():
-            self.log.warning(f"⚠ Warmup file not found: {parquet_path}. Strategy will delay trading until buffer fills.")
+            self.log.warning(
+                f"⚠ Warmup file missing: {parquet_path}. Trading delayed."
+            )
             return
 
         self.log.info(f"Loading warmup data from {parquet_path}...")
@@ -87,29 +89,31 @@ class MLSignalStrategy(Strategy):
             df = df.sort_index()
             # Take last N bars
             df = df.tail(self.config.warmup_bars)
-            
+
             # Convert to list of dicts for our buffer
             # Expected cols: open, high, low, close, volume (lowercase)
             required_cols = ["open", "high", "low", "close", "volume"]
             if not all(c in df.columns for c in required_cols):
-               self.log.error(f"Warmup data missing columns. Found: {df.columns}")
-               return
-            
+                self.log.error(f"Warmup data missing columns. Found: {df.columns}")
+                return
+
             # Reset index to get 'time' column if it's the index
             df_reset = df.reset_index()
             # Rename index col to 'time' if needed, though we rely on order
-            
+
             for _, row in df_reset.iterrows():
                 # We store as floats in the buffer for feature calc
-                self.history.append({
-                    "time": row.iloc[0], # Optimization: assume index is time
-                    "open": float(row["open"]),
-                    "high": float(row["high"]),
-                    "low": float(row["low"]),
-                    "close": float(row["close"]),
-                    "volume": float(row["volume"]),
-                })
-            
+                self.history.append(
+                    {
+                        "time": row.iloc[0],  # Optimization: assume index is time
+                        "open": float(row["open"]),
+                        "high": float(row["high"]),
+                        "low": float(row["low"]),
+                        "close": float(row["close"]),
+                        "volume": float(row["volume"]),
+                    }
+                )
+
             self.log.info(f"Warmed up with {len(self.history)} bars.")
 
         except Exception as e:
@@ -118,14 +122,16 @@ class MLSignalStrategy(Strategy):
     def on_bar(self, bar: Bar):
         """Called when a new bar closes."""
         # 1. Update History
-        self.history.append({
-            "time": bar.close_time_as_datetime(),
-            "open": float(bar.open),
-            "high": float(bar.high),
-            "low": float(bar.low),
-            "close": float(bar.close),
-            "volume": float(bar.volume),
-        })
+        self.history.append(
+            {
+                "time": bar.close_time_as_datetime(),
+                "open": float(bar.open),
+                "high": float(bar.high),
+                "low": float(bar.low),
+                "close": float(bar.close),
+                "volume": float(bar.volume),
+            }
+        )
 
         # Keep buffer size manageable (e.g. 1000 bars max, need enough for indicators)
         max_bars = self.config.warmup_bars + 200
@@ -133,7 +139,7 @@ class MLSignalStrategy(Strategy):
             self.history = self.history[-max_bars:]
 
         # 2. Check Warmup Status
-        if len(self.history) < 200: # Min required for slow SMAs (e.g. SMA 100)
+        if len(self.history) < 200:  # Min required for slow SMAs (e.g. SMA 100)
             self.log.info(f"Waiting for history... ({len(self.history)}/200)")
             return
 
@@ -141,23 +147,24 @@ class MLSignalStrategy(Strategy):
         try:
             df = pd.DataFrame(self.history)
             df.set_index("time", inplace=True)
-            
+
             # Calculate features (identical to training)
-            # TODO: Handle context_data (MTF) for live usage. 
-            # For this MVP, we pass empty context_data or handle it if we have multi-bar subscriptions.
+            # TODO: Handle context_data (MTF) for live usage.
+            # For this MVP, we pass empty context_data or handle it
+            # if we have multi-bar subscriptions.
             # If the model relies on MTF, we must subscribe to those TFs too.
             # For now, we assume single-timeframe or missing MTF features won't crash (fill NaNs).
-            
-            context_data = {} # Placeholder for MTF
-            
+
+            context_data = {}  # Placeholder for MTF
+
             X = build_features(df, context_data, self.feature_config)
-            
+
             # Get latest row
-            latest_features = X.iloc[[-1]] # Keep as DataFrame
-            
+            latest_features = X.iloc[[-1]]  # Keep as DataFrame
+
             # 4. Predict
             signal = self.model.predict(latest_features)[0]
-            
+
             # 5. Execute
             self._execute_signal(signal, bar.close)
 
@@ -168,7 +175,7 @@ class MLSignalStrategy(Strategy):
         """Execute trades based on signal (1, -1, 0)."""
         # Get current position
         position = self.cache.position(self.instrument_id)
-        
+
         # Current Size (0 if no position)
         current_qty = position.quantity if position else Decimal(0)
         # Direction: 1 (Long), -1 (Short), 0 (Flat)
@@ -190,26 +197,26 @@ class MLSignalStrategy(Strategy):
         # Signal 0 (Flat):
         #   - Close any position
 
-        qt = Decimal("1000") # Fixed lot size for MVP
-        
+        qt = Decimal("1000")  # Fixed lot size for MVP
+
         if signal == 1:
             if current_dir == 1:
-                return # Already Long
+                return  # Already Long
             elif current_dir == -1:
                 self.close_all_positions(self.instrument_id)
                 self.buy(self.instrument_id, Quantity(qt, 0))
-            else: # Flat
+            else:  # Flat
                 self.buy(self.instrument_id, Quantity(qt, 0))
 
         elif signal == -1:
             if current_dir == -1:
-                return # Already Short
+                return  # Already Short
             elif current_dir == 1:
                 self.close_all_positions(self.instrument_id)
                 self.sell(self.instrument_id, Quantity(qt, 0))
-            else: # Flat
+            else:  # Flat
                 self.sell(self.instrument_id, Quantity(qt, 0))
-                
+
         elif signal == 0:
             if current_dir != 0:
                 self.close_all_positions(self.instrument_id)
@@ -219,7 +226,7 @@ class MLSignalStrategy(Strategy):
             instrument_id=instrument_id,
             order_side=OrderSide.BUY,
             quantity=quantity,
-            time_in_force=TimeInForce.FOK, # Fill or Kill for OANDA usually
+            time_in_force=TimeInForce.FOK,  # Fill or Kill for OANDA usually
         )
         self.submit_order(order)
         self.log.info(f"Submitted BUY {quantity} {instrument_id}")

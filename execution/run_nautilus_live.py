@@ -14,7 +14,7 @@ from pathlib import Path
 
 from nautilus_trader.config import TradingNodeConfig
 from nautilus_trader.live.node import TradingNode
-from execution.nautilus_oanda.adapters import OandaCombinedInstrumentProvider, OandaLiveExecClient, OandaLiveDataClient
+
 from strategies.ml_strategy import MLSignalStrategy, MLSignalStrategyConfig
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -35,8 +35,6 @@ from execution.nautilus_oanda.config import (
 from execution.nautilus_oanda.data import OandaDataClient
 from execution.nautilus_oanda.execution import OandaExecutionClient
 from execution.nautilus_oanda.instruments import OandaInstrumentProvider
-from execution.nautilus_oanda.instruments import OandaInstrumentProvider
-from strategies.ml_strategy import MLSignalStrategy, MLSignalStrategyConfig
 from strategies.simple_printer import SimplePrinter, SimplePrinterConfig
 
 # ---------------------------------------------------------------------------
@@ -149,12 +147,17 @@ def main():
     # 5. Load Strategy (Auto-Discover ML Model)
     print("🧠 Searching for trained ML models...")
     models_dir = PROJECT_ROOT / "models"
-    model_files = sorted(list(models_dir.glob("*.joblib")), key=lambda f: f.stat().st_mtime, reverse=True)
-    
+    model_files = sorted(
+        list(models_dir.glob("*.joblib")), key=lambda f: f.stat().st_mtime, reverse=True
+    )
+
     selected_model = None
     selected_tf = None
-    
-    # Prioritize models with explicit timeframe in name (e.g. _H4_)
+
+    # Logic:
+    # 1. Prioritize models with explicit timeframe in name (e.g. _H4_)
+    # 2. Fallback to latest modified file
+
     for m in model_files:
         if "_H4_" in m.name:
             selected_model = m
@@ -164,41 +167,43 @@ def main():
             selected_model = m
             selected_tf = "H1"
             break
-            
+
+    if not selected_model and model_files:
+        selected_model = model_files[0]
+        print(f"ℹ No specific timeframe found. Using latest: {selected_model.name}")
+
     if selected_model:
-        print(f"✅ Found Model: {selected_model.name}")
-    # 4. Load Strategy
-    models_dir = PROJECT_ROOT / "models"
-    model_files = list(models_dir.glob("*.joblib"))
-    
-    if model_files:
-        # Sort by modification time (newest first)
-        latest_model = sorted(model_files, key=lambda p: p.stat().st_mtime, reverse=True)[0]
-        logging.info(f"Loaded latest model: {latest_model.name}")
-        
-        # Infer instrument and bar type from filename if possible
-        instrument_id = "EUR/USD" 
-        granularity = "H4" 
-        if "H1" in latest_model.name: granularity = "H1"
-        if "M15" in latest_model.name: granularity = "M15"
-        if "GBP_USD" in latest_model.name: instrument_id = "GBP/USD"
-        
+        logging.info(f"Loaded model: {selected_model.name}")
+
+        # Infer instrument and bar type
+        instrument_id = "EUR/USD"
+        granularity = selected_tf if selected_tf else "H4"
+
+        if "H1" in selected_model.name:
+            granularity = "H1"
+        if "M15" in selected_model.name:
+            granularity = "M15"
+        if "GBP_USD" in selected_model.name:
+            instrument_id = "GBP/USD"
+
         bar_type = f"{instrument_id}-{granularity}"
-        
+
         strat_config = MLSignalStrategyConfig(
-            model_path=str(latest_model),
+            model_path=str(selected_model),
             instrument_id=instrument_id,
             bar_type=bar_type,
             risk_pct=0.02,
             warmup_bars=500,
         )
-        
+
         strategy = MLSignalStrategy(strat_config)
         node.add_strategy(strategy)
-        print(f"🚀 Deployed ML Strategy on {bar_type} using {latest_model.name}")
-        
+        print(f"🚀 Deployed ML Strategy on {bar_type} using {selected_model.name}")
+
     else:
-        print("⚠ No ML models found in models/ directory. Running in Printer Mode (Monitoring only).")
+        print(
+            "⚠ No ML models found in models/ directory. Running in Printer Mode (Monitoring only)."
+        )
         strategy_config = SimplePrinterConfig()
         strategy = SimplePrinter(config=strategy_config)
         node.add_strategy(strategy)
