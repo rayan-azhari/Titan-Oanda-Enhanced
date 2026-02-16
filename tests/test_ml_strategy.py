@@ -15,6 +15,7 @@ sys.path.insert(0, str(PROJECT_ROOT))
 # Mock Nautilus & joblib
 from unittest.mock import patch
 
+
 class TestMLSignalStrategy(unittest.TestCase):
     def setUp(self):
         # Patch sys.modules to mock nautilus_trader
@@ -53,7 +54,7 @@ class TestMLSignalStrategy(unittest.TestCase):
         # We must reload it if it was already imported, or ensure fresh import
         if "titan.strategies.ml.strategy" in sys.modules:
             del sys.modules["titan.strategies.ml.strategy"]
-        
+
         from titan.strategies.ml.strategy import MLSignalStrategy
         self.MLSignalStrategy = MLSignalStrategy
 
@@ -61,7 +62,7 @@ class TestMLSignalStrategy(unittest.TestCase):
         self.data_dir = PROJECT_ROOT / "data"
         self.data_dir.mkdir(exist_ok=True)
         self.test_file = self.data_dir / "TEST_USD_H4.parquet"
-        
+
         # ... rest of setup ...
         dates = pd.date_range(start="2023-01-01", periods=50, freq="4h")
         df = pd.DataFrame(

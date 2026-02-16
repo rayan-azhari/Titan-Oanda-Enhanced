@@ -1,10 +1,10 @@
 """titan/data/oanda.py — OANDA Data Fetching Logic."""
 
 import time
+
 import oandapyV20
 import oandapyV20.endpoints.instruments as instruments_ep
 import pandas as pd
-from decimal import Decimal
 
 
 def fetch_candles(

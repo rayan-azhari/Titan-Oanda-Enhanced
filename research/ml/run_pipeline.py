@@ -39,7 +39,7 @@ except ImportError:
     vbt = None
     print("  ⚠ vectorbt not installed — VBT backtest will be skipped.")
 
-from sklearn.ensemble import GradientBoostingClassifier, RandomForestClassifier
+from sklearn.ensemble import GradientBoostingClassifier, RandomForestClassifier  # noqa: E402
 
 try:
     import xgboost as xgb
@@ -68,7 +68,7 @@ def load_ohlcv(pair: str, gran: str) -> pd.DataFrame | None:
 
 
 # Import shared feature engineering logic
-from titan.strategies.ml.features import (
+from titan.strategies.ml.features import (  # noqa: E402
     atr,
     build_features,
 )

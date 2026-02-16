@@ -35,7 +35,7 @@ except ImportError:
     print("ERROR: plotly is not installed. Run `uv sync` first.")
     sys.exit(1)
 
-from titan.models.spread import build_spread_series
+from titan.models.spread import build_spread_series  # noqa: E402
 
 # Mapping OANDA granularity codes to pandas frequency strings.
 # VBT needs this to calculate annualised Sharpe ratios.

@@ -20,7 +20,7 @@ REPORTS_DIR = PROJECT_ROOT / ".tmp" / "reports"
 REPORTS_DIR.mkdir(parents=True, exist_ok=True)
 
 try:
-    from backtesting import Backtest, Strategy  # noqa: F401
+    from backtesting import Backtest, Strategy  # noqa: F401, E402
 except ImportError:
     print("ERROR: backtesting is not installed. Run `uv sync` first.")
     sys.exit(1)

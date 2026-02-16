@@ -34,8 +34,7 @@ class MTFConfluenceConfig(StrategyConfig):
 
 
 class MTFConfluenceStrategy(Strategy):
-    """
-    Executes trades based on Multi-Timeframe Confluence.
+    """Executes trades based on Multi-Timeframe Confluence.
 
     Logic:
     1.  Subscribe to H1, H4, D, W bars.

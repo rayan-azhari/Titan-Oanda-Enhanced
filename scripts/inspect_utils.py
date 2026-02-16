@@ -6,7 +6,7 @@ except ImportError:
     print("nautilus_trader.core.datetime not found")
 
 try:
-    from nautilus_trader.model.identifiers import TraderId
+    from nautilus_trader.model.identifiers import TraderId  # noqa: F401
     print("Found TraderId")
 except ImportError:
     print("TraderId import failed")

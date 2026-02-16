@@ -8,11 +8,12 @@ from unittest.mock import MagicMock, patch
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
+from nautilus_trader.model.enums import AccountType, OmsType, PositionSide
 from nautilus_trader.model.identifiers import ClientId, Venue
 from nautilus_trader.model.objects import Currency
-from nautilus_trader.model.enums import AccountType, OmsType, PositionSide
 
 from titan.adapters.oanda.config import OandaExecutionClientConfig
+
 
 class MockBase:
     def __init__(self, *args, **kwargs):
@@ -20,7 +21,7 @@ class MockBase:
 
 def _get_patched_client_class():
     """Import OandaExecutionClient with its base class patched to MockBase.
-    
+
     This bypasses all Cython/Nautilus restrictions (readonly attrs, type checks)
     and allows pure logic testing of the python subclass.
     """
@@ -40,7 +41,7 @@ def _make_client():
         access_token="fake-token",
         environment="practice",
     )
-    
+
     ClientClass = _get_patched_client_class()
 
     # Instantiate with arbitrary arguments (type checks are mocked out)
@@ -63,10 +64,10 @@ def _make_client():
     client._loop = loop
     client._clock = MagicMock()
     client._clock.timestamp_ns.return_value = 1625097600000000000
-    
+
     # Logic uses self._log to define errors
     client._log = MagicMock()
-    
+
     # API mock (normally set by OandaExecutionClient.__init__)
     # We verify it exists or set it if needed (it should be set by init logic)
     if not hasattr(client, '_api'):

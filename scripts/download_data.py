@@ -18,9 +18,11 @@ from dotenv import load_dotenv
 load_dotenv(PROJECT_ROOT / ".env")
 
 import os
+
 import oandapyV20
 import pandas as pd
-from titan.data.oanda import fetch_candles, candles_to_dataframe
+
+from titan.data.oanda import candles_to_dataframe, fetch_candles
 
 # Config
 ACCOUNT_ID = os.getenv("OANDA_ACCOUNT_ID")
@@ -89,8 +91,14 @@ def main() -> None:
                     )
 
                 df.to_parquet(output_path, index=False)
-                new_count = len(df) - (len(existing) if output_path.exists() and 'existing' in locals() else 0)
-                print(f"    ✓ {len(df)} rows total | {df['timestamp'].min()} → {df['timestamp'].max()}")
+                prior_count = 0
+                if output_path.exists() and 'existing' in locals():
+                    prior_count = len(existing)
+                new_count = len(df) - prior_count
+                print(
+                    f"    ✓ {len(df)} rows total | "
+                    f"{df['timestamp'].min()} → {df['timestamp'].max()}"
+                )
 
             except Exception as e:
                 print(f"    ❌ Error: {e}")

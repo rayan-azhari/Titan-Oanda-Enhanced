@@ -31,7 +31,7 @@ except ImportError:
     print("ERROR: vectorbt not installed. Run: pip install vectorbt")
     sys.exit(1)
 
-from titan.models.spread import build_spread_series
+from titan.models.spread import build_spread_series  # noqa: E402
 
 # ─────────────────────────────────────────────────────────────────────
 # Parameter grid — Stage 1

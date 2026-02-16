@@ -17,11 +17,11 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-import numpy as np
-import pandas as pd
-import vectorbt as vbt
+import numpy as np  # noqa: E402
+import pandas as pd  # noqa: E402
+import vectorbt as vbt  # noqa: E402
 
-from titan.indicators.gaussian_filter import GaussianChannel
+from titan.indicators.gaussian_filter import GaussianChannel  # noqa: E402
 
 # ---------------------------------------------------------------------------
 # Configuration

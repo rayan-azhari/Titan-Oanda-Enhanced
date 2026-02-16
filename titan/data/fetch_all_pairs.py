@@ -5,12 +5,12 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
-from dotenv import load_dotenv
+from dotenv import load_dotenv  # noqa: E402
 
 load_dotenv(PROJECT_ROOT / ".env")
 
-import oandapyV20
-import oandapyV20.endpoints.accounts as accounts
+import oandapyV20  # noqa: E402
+import oandapyV20.endpoints.accounts as accounts  # noqa: E402
 
 
 def main():

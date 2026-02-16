@@ -28,12 +28,12 @@ REPORTS_DIR.mkdir(parents=True, exist_ok=True)
 CONFIG_PATH = PROJECT_ROOT / "config" / "mtf.toml"
 
 try:
-    import vectorbt as vbt
+    import vectorbt as vbt  # noqa: E402
 except ImportError:
     print("ERROR: vectorbt not installed.")
     sys.exit(1)
 
-from titan.models.spread import build_spread_series
+from titan.models.spread import build_spread_series  # noqa: E402
 
 # ─────────────────────────────────────────────────────────────────────
 # Configuration
