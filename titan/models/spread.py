@@ -8,7 +8,6 @@ Research Gap Fix #2: The original research only used a flat 0.0002 fee
 with no consideration for variable spread or slippage.
 """
 
-import sys
 import tomllib
 from pathlib import Path
 
@@ -16,10 +15,9 @@ import numpy as np
 import pandas as pd
 
 # PROJECT_ROOT not needed for pure library code if we inject config
-# But for now, we keep it if needed for relative config loading, 
+# But for now, we keep it if needed for relative config loading,
 # though we should aim to pass config in.
 # Removing sys.path hack.
-
 
 
 # ---------------------------------------------------------------------------
@@ -38,7 +36,6 @@ def load_spread_config() -> dict:
 
     Returns:
         Spread configuration dictionary.
-    """
     """
     # For now, we assume standard layout or strict refactor.
     # To keep it working, we can find root without sys.path modification.
@@ -167,6 +164,3 @@ def build_total_cost_series(df: pd.DataFrame, pair: str, position_size: int = 50
 
     total = spread + slippage
     return total
-
-
-

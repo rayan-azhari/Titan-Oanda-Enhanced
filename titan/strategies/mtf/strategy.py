@@ -246,7 +246,8 @@ class MTFConfluenceStrategy(Strategy):
             signal_label = "FLAT"
 
         # Current position state
-        position = self.cache.position(self.instrument_id)
+        positions = self.cache.positions(instrument_id=self.instrument_id)
+        position = positions[-1] if positions else None
         pos_label = "FLAT"
         if position and position.is_open:
             pos_label = "LONG" if str(position.side) == "LONG" else "SHORT"
@@ -313,7 +314,8 @@ class MTFConfluenceStrategy(Strategy):
     def _execute_bias(self, bias: int, price: Decimal):
         """Manage Positions based on Bias (Signal Only)."""
         instrument_id = self.instrument_id
-        position = self.cache.position(instrument_id)
+        positions = self.cache.positions(instrument_id=instrument_id)
+        position = positions[-1] if positions else None
 
         # Current State
         current_dir = 0

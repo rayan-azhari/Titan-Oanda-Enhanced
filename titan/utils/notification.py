@@ -10,7 +10,6 @@ import json
 import os
 import sys
 import urllib.request
-from pathlib import Path
 
 SLACK_WEBHOOK_URL = os.getenv("SLACK_WEBHOOK_URL")
 

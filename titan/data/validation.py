@@ -7,12 +7,7 @@ Research Gap Fix: No data quality validation was specified in the
 original research document.
 """
 
-import sys
-from pathlib import Path
-
 import pandas as pd
-
-
 
 # ---------------------------------------------------------------------------
 # Validation checks
@@ -129,11 +124,3 @@ def check_negative_volume(df: pd.DataFrame, name: str) -> int:
     else:
         print(f"  ✓ {name}: All volumes positive")
     return bad
-
-
-# ---------------------------------------------------------------------------
-# Main
-# ---------------------------------------------------------------------------
-
-
-

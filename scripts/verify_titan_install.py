@@ -1,6 +1,6 @@
 """verify_titan_install.py — Verify the titan package is installed and importable.
 
-This script should be run from outside the package to ensure no local folder 
+This script should be run from outside the package to ensure no local folder
 is being picked up by accident.
 """
 
@@ -9,6 +9,7 @@ def main():
     print("🔍 Verifying titan package installation...")
     try:
         import titan
+
         print(f"  ✓ Import successful: {titan}")
         print(f"  ✓ Path: {titan.__file__}")
     except ImportError as e:
@@ -17,9 +18,11 @@ def main():
 
     try:
         from titan.data.oanda import fetch_candles
-        print("  ✓ Import titan.data.oanda successful")
+
+        print(f"  ✓ Import titan.data.oanda successful ({fetch_candles.__name__})")
         from titan.utils.ops import cancel_all_orders
-        print("  ✓ Import titan.utils.ops successful")
+
+        print(f"  ✓ Import titan.utils.ops successful ({cancel_all_orders.__name__})")
     except ImportError as e:
         print(f"  ❌ Submodule import failed: {e}")
         return

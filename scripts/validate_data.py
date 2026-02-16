@@ -5,15 +5,22 @@ Moved from titan/data/validation.py.
 
 import sys
 from pathlib import Path
+
 import pandas as pd
 
 # Add project root to path
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
-from titan.data.validation import check_duplicates, check_gaps, check_outliers, check_negative_volume
+from titan.data.validation import (
+    check_duplicates,
+    check_gaps,
+    check_negative_volume,
+    check_outliers,
+)
 
 RAW_DATA_DIR = PROJECT_ROOT / "data"
+
 
 def main() -> None:
     """Validate all raw Parquet files in data/."""

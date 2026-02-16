@@ -6,6 +6,7 @@ Moved from titan/models/spread.py to separate script logic from library code.
 import sys
 import tomllib
 from pathlib import Path
+
 import pandas as pd
 
 # Add project root to path
@@ -15,6 +16,7 @@ sys.path.insert(0, str(PROJECT_ROOT))
 from titan.models.spread import build_spread_series, build_total_cost_series
 
 RAW_DATA_DIR = PROJECT_ROOT / "data"
+
 
 def generate_spread_report(pair: str, granularity: str) -> None:
     """Generate a spread analysis report for a given pair."""

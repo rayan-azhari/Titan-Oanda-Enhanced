@@ -4,7 +4,6 @@ This module ensures that the features calculated during training (run_ml_strateg
 are IDENTICAL to the features calculated during live trading (ml_strategy.py).
 """
 
-import sys
 import tomllib
 from pathlib import Path
 

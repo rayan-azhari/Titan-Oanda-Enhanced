@@ -14,9 +14,11 @@ sys.path.insert(0, str(PROJECT_ROOT))
 
 # Load environment using the project root
 from dotenv import load_dotenv
+
 load_dotenv(PROJECT_ROOT / ".env")
 
 import oandapyV20
+
 import titan.utils.ops
 
 # Load environment variables
