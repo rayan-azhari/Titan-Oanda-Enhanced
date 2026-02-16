@@ -38,9 +38,9 @@ This project follows a **3-layer architecture** that separates *Probabilistic In
 │   ├── Nautilus-Oanda Adapter Construction.md
 │   ├── Strategy Validation (Backtesting.py).md
 │   ├── Ensemble Strategy Framework.md
-│   ├── Multi-Timeframe Confluence.md
+│   ├── Multi-Timeframe Confluence.md      ← (SMA + RSI Optimized)
 │   ├── Gaussian Channel Strategy Porting.md
-│   ├── Gaussian Channel Confluence Strategy.md
+│   ├── Gaussian Channel Confluence Strategy.md ← (Superseded)
 │   ├── Live Deployment and Monitoring.md
 │   └── Workspace Initialisation.md
 ├── execution/                     ← Python scripts

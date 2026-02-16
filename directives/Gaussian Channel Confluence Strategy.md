@@ -1,17 +1,14 @@
 # Directive: Gaussian Channel Confluence Strategy
 
+> **Status: ❌ SUPERSEDED**
+>
+> **Note:** This specific hypothesis was tested but superseded by the general **Multi-Timeframe Confluence** framework (`directives/Multi-Timeframe Confluence.md`), which optimized towards an **SMA + RSI** approach (Sharpe 1.75) rather than Gaussian Channels for the MTF components.
+
 ## Goal
 
-Implement a Multi-Timeframe (MTF) Gaussian Channel strategy where entries are taken on H1 only when aligned with H4, D1, and W1 trends.
+Original Hypothesis: Implement a Multi-Timeframe (MTF) Gaussian Channel strategy where entries are taken on H1 only when aligned with H4, D1, and W1 trends.
 
-## Prerequisites
-
-> **✅ Dependency satisfied:** The Gaussian Filter indicator is implemented in `execution/indicators/gaussian_filter.py` (Numba `@njit` with dynamic `poles` and `period` inputs).
-
-## Inputs
-
-- **Data:** 5 Years of H1 OHLC (EUR/USD).
-- **Logic:** Gaussian Channel (Ehlers Gaussian Filter).
+**Outcome:** The general MTF optimization sweep (Stage 1) found that simple SMAs outperformed Gaussian Channels for the trend filter component. We proceed with the SMA-based MTF strategy.
 
 ## Execution Steps
 

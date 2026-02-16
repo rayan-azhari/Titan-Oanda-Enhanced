@@ -26,7 +26,7 @@ from execution.indicators.gaussian_filter import GaussianChannel
 # ---------------------------------------------------------------------------
 # Configuration
 # ---------------------------------------------------------------------------
-DATA_PATH = ROOT / "data" / "EUR_USD_H1.parquet"
+DATA_PATH = ROOT / "data" / "EUR_USD_H1_all.parquet"
 CONFIG_PATH = ROOT / "config" / "gaussian_channel_config.toml"
 REPORT_DIR = ROOT / ".tmp" / "reports"
 
@@ -53,13 +53,14 @@ def load_data() -> pd.DataFrame:
 
 
 def run_optimisation(df: pd.DataFrame) -> pd.DataFrame:
-    """Run GaussianChannel over all parameter combos, return Sharpe results."""
+    """Run GaussianChannel over all parameter combos with multiple signal strategies."""
     high = df["mid_h"].values if "mid_h" in df.columns else df["high"].values
     low = df["mid_l"].values if "mid_l" in df.columns else df["low"].values
     close = df["mid_c"].values if "mid_c" in df.columns else df["close"].values
 
     results = []
-    total = len(PERIODS) * len(POLES) * len(SIGMAS)
+    strategies = ["trend_follow", "mean_revert", "band_breakout"]
+    total = len(PERIODS) * len(POLES) * len(SIGMAS) * len(strategies)
     done = 0
 
     for sigma in SIGMAS:
@@ -78,49 +79,67 @@ def run_optimisation(df: pd.DataFrame) -> pd.DataFrame:
                 mid_col = gc.middle.iloc[:, i].values
                 upper_col = gc.upper.iloc[:, i].values
                 lower_col = gc.lower.iloc[:, i].values
-                close_arr = close
 
-                # Signal logic (from directive):
-                #   Long: price crosses above upper band (momentum breakout)
-                #         OR price bounces off middle line (trend following)
-                #   Short: price crosses below lower band
-                entries_long = (
-                    (close_arr[1:] > upper_col[1:]) & (close_arr[:-1] <= upper_col[:-1])
-                ) | ((close_arr[1:] > mid_col[1:]) & (close_arr[:-1] <= mid_col[:-1]))
-                entries_short = (close_arr[1:] < lower_col[1:]) & (close_arr[:-1] >= lower_col[:-1])
+                # --- Strategy A: Trend Following ---
+                # Long when close crosses above middle, exit when below
+                entries_a = (close[1:] > mid_col[1:]) & (close[:-1] <= mid_col[:-1])
+                exits_a = (close[1:] < mid_col[1:]) & (close[:-1] >= mid_col[:-1])
+                entries_a = np.concatenate(([False], entries_a))
+                exits_a = np.concatenate(([False], exits_a))
 
-                # Pad first bar
-                entries_long = np.concatenate(([False], entries_long))
-                entries_short = np.concatenate(([False], entries_short))
+                # --- Strategy B: Mean Reversion ---
+                # Long when price touches lower band, exit at middle
+                entries_b = (close[1:] <= lower_col[1:]) & (close[:-1] > lower_col[:-1])
+                exits_b = (close[1:] >= mid_col[1:]) & (close[:-1] < mid_col[:-1])
+                entries_b = np.concatenate(([False], entries_b))
+                exits_b = np.concatenate(([False], exits_b))
 
-                # VBT portfolio — long entries exit on short entries and vice versa
-                pf = vbt.Portfolio.from_signals(
-                    close=close_arr,
-                    entries=entries_long,
-                    exits=entries_short,
-                    init_cash=INIT_CASH,
-                    fees=FEES,
-                    freq="1h",
-                )
+                # --- Strategy C: Band Breakout ---
+                # Long when close breaks above upper band AND middle is rising
+                mid_rising = np.zeros(len(close), dtype=bool)
+                mid_rising[1:] = mid_col[1:] > mid_col[:-1]
+                cross_upper = np.zeros(len(close), dtype=bool)
+                cross_upper[1:] = (close[1:] > upper_col[1:]) & (close[:-1] <= upper_col[:-1])
+                entries_c = cross_upper & mid_rising
+                cross_lower = np.zeros(len(close), dtype=bool)
+                cross_lower[1:] = (close[1:] < lower_col[1:]) & (close[:-1] >= lower_col[:-1])
+                exits_c = cross_lower
 
-                sharpe = pf.sharpe_ratio()
-                total_return = pf.total_return()
-                n_trades = pf.trades.count()
+                for strat_name, entries, exits in [
+                    ("trend_follow", entries_a, exits_a),
+                    ("mean_revert", entries_b, exits_b),
+                    ("band_breakout", entries_c, exits_c),
+                ]:
+                    pf = vbt.Portfolio.from_signals(
+                        close=close,
+                        entries=entries,
+                        exits=exits,
+                        init_cash=INIT_CASH,
+                        fees=FEES,
+                        freq="1h",
+                    )
 
-                results.append(
-                    {
-                        "period": period,
-                        "poles": poles,
-                        "sigma": sigma,
-                        "sharpe": sharpe,
-                        "total_return": total_return,
-                        "n_trades": n_trades,
-                    }
-                )
+                    sharpe = pf.sharpe_ratio()
+                    total_return = pf.total_return()
+                    n_trades = pf.trades.count()
+                    max_dd = pf.max_drawdown()
 
-                done += 1
-                if done % 50 == 0:
-                    print(f"  [{done}/{total}] combos tested...")
+                    results.append(
+                        {
+                            "strategy": strat_name,
+                            "period": period,
+                            "poles": poles,
+                            "sigma": sigma,
+                            "sharpe": sharpe,
+                            "total_return": total_return,
+                            "max_drawdown": max_dd,
+                            "n_trades": n_trades,
+                        }
+                    )
+
+                    done += 1
+                    if done % 100 == 0:
+                        print(f"  [{done}/{total}] combos tested...")
 
     return pd.DataFrame(results)
 
@@ -129,25 +148,41 @@ def save_best_config(results_df: pd.DataFrame) -> dict:
     """Find the best combo by Sharpe and save to TOML."""
     best = results_df.loc[results_df["sharpe"].idxmax()]
     print("\n=== Best Parameters ===")
+    print(f"  Strategy: {best['strategy']}")
     print(f"  Period: {int(best['period'])}")
     print(f"  Poles:  {int(best['poles'])}")
     print(f"  Sigma:  {best['sigma']:.1f}")
     print(f"  Sharpe: {best['sharpe']:.4f}")
     print(f"  Return: {best['total_return']:.2%}")
+    print(f"  MaxDD:  {best['max_drawdown']:.2%}")
     print(f"  Trades: {int(best['n_trades'])}")
+
+    # Also show best per strategy
+    print("\n=== Best Per Strategy ===")
+    for strat in results_df["strategy"].unique():
+        sub = results_df[results_df["strategy"] == strat]
+        b = sub.loc[sub["sharpe"].idxmax()]
+        print(
+            f"  {strat:15s}  period={int(b['period']):3d}  "
+            f"poles={int(b['poles'])}  sigma={b['sigma']:.1f}  "
+            f"sharpe={b['sharpe']:.4f}  ret={b['total_return']:.2%}  "
+            f"maxDD={b['max_drawdown']:.2%}  trades={int(b['n_trades'])}"
+        )
 
     config_content = f"""# Gaussian Channel — Optimised Parameters
 # Auto-generated by run_gaussian_optimisation.py
 
 [gaussian_channel]
-period = {int(best["period"])}
-poles = {int(best["poles"])}
-sigma = {best["sigma"]:.1f}
+strategy = \"{best['strategy']}\"
+period = {int(best['period'])}
+poles = {int(best['poles'])}
+sigma = {best['sigma']:.1f}
 
 [gaussian_channel.results]
-sharpe = {best["sharpe"]:.4f}
-total_return = {best["total_return"]:.4f}
-n_trades = {int(best["n_trades"])}
+sharpe = {best['sharpe']:.4f}
+total_return = {best['total_return']:.4f}
+max_drawdown = {best['max_drawdown']:.4f}
+n_trades = {int(best['n_trades'])}
 """
     CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
     CONFIG_PATH.write_text(config_content, encoding="utf-8")

@@ -178,6 +178,48 @@ uv run python execution/run_gaussian_optimisation.py
 
 ---
 
+## 🦅 Phase 3.7: Multi-Timeframe Confluence Strategy
+
+This is our **best performing strategy** (Sharpe 1.75 on EUR/USD). It filters out noise by requiring alignment across Daily, H4, and H1 timeframes.
+
+**The Command:**
+```bash
+uv run python execution/run_mtf_backtest.py
+```
+
+**How it works:**
+It calculates a weighted "Confluence Score" based on **SMA Crossovers** and **RSI Momentum** across multiple timeframes:
+
+| Timeframe | Weight | Role | Logic |
+|---|---|---|---|
+| **Daily (D)** | **60%** | Trend Bias | SMA(13, 20) + RSI(14) |
+| **H4** | **25%** | Swing Confirm | SMA(10, 50) + RSI(21) |
+| **H1** | **10%** | Entry Timing | SMA(10, 30) + RSI(21) |
+| **Weekly** | **5%** | Regime Filter | SMA(13, 21) + RSI(10) |
+
+**Signal Logic:**
+- **Long:** Confluence Score ≥ +0.10
+- **Short:** Confluence Score ≤ -0.10
+
+**Optimization Process:**
+We found these exact settings through a rigorous 3-stage sweep:
+1.  **Stage 1:** Determined that **SMA** beats EMA, and a low threshold (**0.10**) is better than 0.30.
+2.  **Stage 2:** Found that **Daily Trend** is the most important factor (60% weight).
+3.  **Stage 3:** Tuned the exact lookback periods for each timeframe independently.
+
+To re-run this optimization yourself (e.g., for a different pair):
+```bash
+uv run python execution/run_mtf_optimisation.py  # Stage 1
+uv run python execution/run_mtf_stage2.py        # Stage 2
+uv run python execution/run_mtf_stage3.py        # Stage 3
+```
+
+**Sanity Check:**
+- Open `config/mtf.toml` to see the optimized parameters.
+- Check `.tmp/reports/mtf_confluence_EUR_USD_oos.html` to see the strategy performance.
+
+---
+
 ## 🧠 Phase 4: Train the AI (Machine Learning)
 
 Simple rules (RSI < 30) are good, but AI is better. The ML pipeline now **automatically reads** the tuned parameters from `config/features.toml` (written by Phase 3.5). If the config doesn't exist, it falls back to sensible defaults.

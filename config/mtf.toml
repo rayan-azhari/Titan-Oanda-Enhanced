@@ -1,40 +1,33 @@
-# ──────────────────────────────────────────────────────────
-# mtf.toml — Multi-Timeframe Confluence Configuration
-# ──────────────────────────────────────────────────────────
-# Weights control how much each timeframe contributes to the
-# final confluence score. Higher timeframes = more influence.
+# ========================================================
+# mtf.toml -- Multi-Timeframe Confluence Configuration
+# ========================================================
+# Optimised via Stage 1-3 sweeps (run_mtf_optimisation.py,
+# run_mtf_stage2.py, run_mtf_stage3.py).
 
 [weights]
-H1 = 0.15           # Entry timing — lowest weight
-H4 = 0.35           # Primary swing frame — highest weight
-D  = 0.35           # Trend confirmation — equal to H4
-W  = 0.15           # Regime filter — weekly direction
+H1 = 0.10
+H4 = 0.25
+D  = 0.60
+W  = 0.05
 
-# Minimum weighted score to generate a trade signal.
-# 0.3 = at least 2 out of 4 timeframes must agree strongly.
-confirmation_threshold = 0.30
+confirmation_threshold = 0.10
 
-# Per-timeframe indicator settings
 [H1]
-fast_ma = 20
-slow_ma = 50
-rsi_period = 14
-structure_period = 20
+fast_ma = 10
+slow_ma = 30
+rsi_period = 21
 
 [H4]
-fast_ma = 20
+fast_ma = 10
 slow_ma = 50
-rsi_period = 14
-structure_period = 20
+rsi_period = 21
 
 [D]
-fast_ma = 10         # Shorter MAs on daily — fewer bars available
-slow_ma = 30
+fast_ma = 13
+slow_ma = 20
 rsi_period = 14
-structure_period = 10
 
 [W]
-fast_ma = 5          # Very short MAs on weekly — few bars
-slow_ma = 13
-rsi_period = 14
-structure_period = 5
+fast_ma = 13
+slow_ma = 21
+rsi_period = 10

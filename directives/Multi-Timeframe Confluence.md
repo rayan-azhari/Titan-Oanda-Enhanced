@@ -1,72 +1,73 @@
-# Directive: Multi-Timeframe Confluence
+# Directive: Multi-Timeframe Confluence Strategy
+
+> **Status: ✅ COMPLETE & OPTIMIZED**
 
 ## Goal
 
-Only trade when **all three timeframes** (H1, H4, D) agree on direction. This dramatically reduces false signals by requiring top-down confirmation before entry.
+Execute high-probability trades by requiring alignment across **Daily (Trend)**, **H4 (Swing)**, and **H1 (Entry)** timeframes. This strategy filters out lower-timeframe noise by ensuring the broader market context is supportive.
 
-## Concept
+## Strategy Logic
 
-| Timeframe | Role | Weight |
+**Formula:**
+$$ Confluence = w_D \cdot Signal_D + w_{H4} \cdot Signal_{H4} + w_{H1} \cdot Signal_{H1} + w_W \cdot Signal_W $$
+
+Where each $Signal_{TF} \in [-1, +1]$ is derived from:
+1.  **Trend:** SMA Crossover (Fast > Slow = +0.5, else -0.5)
+2.  **Momentum:** RSI (> 50 = +0.5, else -0.5)
+
+**Entry Condition:**
+-   **Long:** Confluence $\ge +0.10$
+-   **Short:** Confluence $\le -0.10$
+
+## Optimized Configuration (Stage 3 Results)
+
+Through extensive parameter sweeping (Stages 1-3), the following configuration yielded a **Combined Sharpe of 1.75** on EUR/USD:
+
+### 1. Timeframe Weights
+| Timeframe | Weight | Role |
 |---|---|---|
-| **D** | Sets the directional bias — are we in a trend? | 40% |
-| **H4** | Confirms the swing — is this a valid pullback? | 40% |
-| **H1** | Times the entry — is the short-term turning? | 20% |
+| **Daily (D)** | **0.60** | **Dominant Trend Bias** (Primary Driver) |
+| **H4** | **0.25** | Swing Confirmation |
+| **H1** | **0.10** | Entry Timing (Fine-tuning) |
+| **Weekly (W)** | **0.05** | Minimal Regime Filter |
 
-```
-    D  ──── TREND BIAS ────→  Bullish ✓
-    H4 ──── SWING CONFIRM ──→ Bullish ✓
-    H1 ──── ENTRY TIMING ───→ Bullish ✓
-                                ↓
-                        📈 FULL CONFLUENCE
-                        ↓
-                    Execute BUY signal
-```
+### 2. Indicator Parameters
+| TF | Fast SMA | Slow SMA | RSI Period |
+|---|---|---|---|
+| **D** | 13 | 20 | 14 |
+| **H4** | 10 | 50 | 21 |
+| **H1** | 10 | 30 | 21 |
+| **W** | 13 | 21 | 10 |
 
-## Signal Components
+## Performance (EUR/USD, 2005-2026)
 
-Each timeframe produces 3 sub-signals:
+| Metric | In-Sample (2005-2019) | Out-of-Sample (2019-2026) |
+|---|---|---|
+| **Sharpe Ratio** | 1.66 | **1.83** |
+| **Total Return** | +293% (Avg L/S) | +69% (Avg L/S) |
+| **Max Drawdown** | -8.6% | -4.2% |
+| **Parity Score** | — | **1.10 (Pass)** |
 
-1. **Trend** — Dual-MA crossover (fast > slow = bullish)
-2. **Momentum** — RSI position (>60 = bullish, <40 = bearish)
-3. **Structure** — Higher highs/lows vs lower highs/lows
+## Execution
 
-These are averaged into a **bias** per timeframe, then weighted into a **confluence score**.
-
-## Execution Steps
-
-### 1. Download Multi-Timeframe Data
-
+### Run Backtest
+To verify performance with current configuration:
 ```bash
-uv run python execution/download_oanda_data.py
+uv run python execution/run_mtf_backtest.py
 ```
-Ensure H1, H4, and D data are all present in `.tmp/data/raw/`.
 
-### 2. Generate Confluence Signals
-
+### Run Optimization
+To re-optimize (e.g., for a different pair):
 ```bash
-uv run python execution/mtf_confluence.py
+# Stage 1: Threshold & MA Type
+uv run python execution/run_mtf_optimisation.py
+
+# Stage 2: Timeframe Weights
+uv run python execution/run_mtf_stage2.py
+
+# Stage 3: Period Tuning
+uv run python execution/run_mtf_stage3.py
 ```
-Outputs per-pair confluence features to `.tmp/data/features/{PAIR}_mtf_confluence.parquet`.
 
-### 3. Integrate with ML Features
-
-Run `build_ml_features.py` to combine base indicators with MTF confluence features. The ML model can then learn which confluence setups are most predictive.
-
-### 4. Backtest with Confluence Filter
-
-Use `run_vbt_optimisation.py` on the H4 timeframe, but only allow trades where `confluence_signal ≠ 0`.
-
-## Configuration
-
-See `config/mtf.toml` for:
-- Timeframe weights
-- Confirmation threshold
-- Per-timeframe indicator parameters
-
-> [!IMPORTANT]
-> Higher timeframe data is **forward-filled** onto the H1 timeline. This is safe because we only carry forward the *last known* value — no future data leaks.
-
-## Outputs
-
-- `{PAIR}_mtf_confluence.parquet` — per-bar confluence features
-- Confluence signal breakdown (% bullish, bearish, neutral)
+## Configuration File
+Settings are stored in `config/mtf.toml`. This file is automatically updated by `run_mtf_stage3.py`.
