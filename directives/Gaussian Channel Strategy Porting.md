@@ -15,7 +15,7 @@ Translate the "Gaussian Channel" logic from Pine Script to a high-performance Ve
 
 ### Math Translation
 
-- **File:** `execution/indicators/gaussian_filter.py`
+- **File:** `titan/indicators/gaussian_filter.py`
 - **Engine:** Numba `@njit` for all recursive loops; numpy for array allocation.
 - **Formula:** Ehlers Gaussian Filter — cascaded 1-pole EMAs applied N times (N = poles).
 - **Alpha:** Solved from the -3 dB cutoff equation for N cascaded EMAs.
@@ -30,7 +30,7 @@ Translate the "Gaussian Channel" logic from Pine Script to a high-performance Ve
 
 ### Optimisation Script
 
-- **File:** `execution/run_gaussian_optimisation.py`
+- **File:** `research/gaussian/run_optimisation.py`
 - **Ranges:**
   - `period`: 50 to 300 (step 10)
   - `poles`: 1, 2, 3, 4
@@ -54,5 +54,5 @@ Translate the "Gaussian Channel" logic from Pine Script to a high-performance Ve
 ## Usage
 
 ```bash
-uv run python execution/run_gaussian_optimisation.py
+uv run python research/gaussian/run_optimisation.py
 ```

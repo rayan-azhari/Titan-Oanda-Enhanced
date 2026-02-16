@@ -17,7 +17,7 @@ Launch the Antigravity Agent Manager and create the workspace.
 
 ### 2. Environment Configuration
 
-- Initialise a `.env` file using `execution/setup_env.py`.
+- Initialise a `.env` file using `scripts/setup_env.py`.
 - Ensure the `.antigravity/` folder is present and contains `rules.md`.
 
 ### 3. Agent Allocation

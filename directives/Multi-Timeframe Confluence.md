@@ -64,20 +64,20 @@ Through extensive parameter sweeping (Stages 1-3), the following configuration y
 ### Run Backtest
 To verify performance with current configuration:
 ```bash
-uv run python execution/run_mtf_backtest.py
+uv run python scripts/run_backtest_mtf.py
 ```
 
 ### Run Optimization
 To re-optimize (e.g., for a different pair):
 ```bash
 # Stage 1: Threshold & MA Type
-uv run python execution/run_mtf_optimisation.py
+uv run python research/mtf/run_optimisation.py
 
 # Stage 2: Timeframe Weights
-uv run python execution/run_mtf_stage2.py
+uv run python research/mtf/run_stage2.py
 
 # Stage 3: Period Tuning
-uv run python execution/run_mtf_stage3.py
+uv run python research/mtf/run_stage3.py
 ```
 
 ## Configuration File
@@ -93,11 +93,11 @@ To deploy this strategy to the **OANDA Practice Environment**:
 
 ### 2. Run Command
 ```bash
-uv run python execution/run_live_mtf.py
+uv run python scripts/run_live_mtf.py
 ```
 
 ### 3. Implementation Details
-- **Runner:** `execution/run_live_mtf.py` (Custom runner, distinct from ML runner).
+- **Runner:** `scripts/run_live_mtf.py` (Custom runner, distinct from ML runner).
 - **Strategy Class:** `strategies/mtf_strategy.py` (`MTFConfluenceStrategy`).
 - **Bar Types:** Requires explicit OANDA-specific BarType strings (e.g., `EUR/USD.OANDA-1-HOUR-MID-INTERNAL`) to ensure correct subscription.
 - **Warmup:** The strategy automatically loads historical data from `data/raw/` (parquet) to warm up the indicators instantly. No waiting for live bars required.

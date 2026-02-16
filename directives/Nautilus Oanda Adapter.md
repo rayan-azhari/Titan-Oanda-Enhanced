@@ -12,14 +12,14 @@ This directive documents the custom **OANDA V20 Adapter** built for the Titan-Oa
 
 NautilusTrader requires specific interfaces to be implemented for a venue adapter. We implement two core clients:
 
-### 1.1 Data Client (`execution/nautilus_oanda/data.py`)
+### 1.1 DataClient (`titan/adapters/oanda/data.py`)
 Responsible for streaming real-time price data.
 -   **Class:** `OandaDataClient`
 -   **Inherits:** `LiveDataClient`, `MarketDataClient` (Critical!)
 -   **Source:** OANDA Pricing Stream (`/v3/accounts/{id}/pricing/stream`)
 -   **Output:** `QuoteTick` objects (Bid/Ask) published to the Nautilus Message Bus.
 
-### 1.2 Execution Client (`execution/nautilus_oanda/execution.py`)
+### 1.2 ExecutionClient (`titan/adapters/oanda/execution.py`)
 Responsible for order management and account state.
 -   **Class:** `OandaExecutionClient`
 -   **Inherits:** `LiveExecutionClient`
@@ -164,7 +164,7 @@ The `setup_env.py` script usually handles this, but ensure these exist:
 #### 1. "TypeError: Cannot convert OandaDataClient to MarketDataClient"
 -   **Context:** Startup, just after "Strategy Added".
 -   **Cause:** `OandaDataClient` is missing `MarketDataClient` in its inheritance list.
--   **Fix:** Edit `execution/nautilus_oanda/data.py` class definition.
+-   **Fix:** Edit `titan/adapters/oanda/data.py` class definition.
 
 #### 2. "AttributeError: 'NoneType' object has no attribute 'value'"
 -   **Context:** Startup, during `ExecutionMassStatus` generation.

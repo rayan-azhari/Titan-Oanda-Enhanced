@@ -14,7 +14,7 @@ Train and validate a Machine Learning model to predict **price direction** (Clas
 
 ### 1. Unified Pipeline Execution
 
-- Run `execution/run_ml_strategy.py`.
+- Run `research/ml/run_pipeline.py`.
 - This script handles:
     1.  **Feature Engineering**: Builds 30+ features (Volume, Momentum, MTF Bias).
     2.  **Target Engineering**: 3-class target (LONG/SHORT/FLAT) with 0.5 ATR threshold.
@@ -37,4 +37,4 @@ Train and validate a Machine Learning model to predict **price direction** (Clas
 
 - The saved model is automatically picked up by the live engine.
 - See: `directives/Live Deployment and Monitoring.md`
-- Run: `execution/run_nautilus_live.py`
+- Run: `scripts/run_live_ml.py`

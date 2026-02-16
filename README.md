@@ -14,7 +14,9 @@ This project follows a **3-layer architecture** that separates *Probabilistic In
 |---|---|---|
 | **Directive** | `directives/` | Standard Operating Procedures — step-by-step instructions |
 | **Orchestration** | Agent context | Intelligent routing — read directives, choose tools, handle errors |
-| **Execution** | `execution/` | Deterministic Python scripts — API calls, data processing, ML training |
+| **Scripts** | `scripts/` | Entry points for trading, backtesting, and utilities |
+| **Titan** | `titan/` | Core package (strategies, adapters, utils) |
+| **Research** | `research/` | Experimental code (VectorBT, ML training) |
 
 ## Trading Style
 
@@ -105,38 +107,38 @@ uv sync
 
 ### 2. Configure credentials
 ```bash
-uv run python execution/setup_env.py
+uv run python scripts/setup_env.py
 ```
 Or manually: `cp .env.example .env` and edit.
 
 ### 3. Verify connection
 ```bash
-uv run python execution/verify_connection.py
+uv run python scripts/verify_connection.py
 ```
 
 ### 4. Alpha Research Loop
 ```bash
-uv run python execution/fetch_eur_usd.py              # Download raw OHLCV
-uv run python execution/run_vbt_optimisation.py        # Run VBT parameter sweep
-uv run python execution/run_gaussian_optimisation.py   # Gaussian Channel sweep
-uv run python execution/run_feature_selection.py       # Run Feature Selection Bridge
-uv run python execution/run_mtf_backtest.py            # Test MTF Confluence Strategy
+uv run python titan/data/fetch_eur_usd.py              # Download raw OHLCV
+uv run python research/alpha_loop/run_vbt_optimisation.py        # Run VBT parameter sweep
+uv run python research/gaussian/run_optimisation.py   # Gaussian Channel sweep
+uv run python research/alpha_loop/run_feature_selection.py       # Run Feature Selection Bridge
+uv run python scripts/run_backtest_mtf.py            # Test MTF Confluence Strategy
 ```
 
 ### 5. ML Strategy Discovery
 ```bash
 # Runs full pipeline: Feature Engineering -> Target Eng -> Training -> OOS Backtest
-uv run python execution/run_ml_strategy.py
+uv run python research/ml/run_pipeline.py
 ```
 
 ### 6. Ensemble Signal Aggregation
 ```bash
-uv run python execution/run_ensemble.py
+uv run python research/ml/run_ensemble.py
 ```
 
 ### 7. Deployment (Docker)
 ```bash
-uv run python execution/build_docker_image.py
+uv run python scripts/build_docker.py
 docker run --env-file .env titan-oanda-algo
 ```
 
@@ -145,10 +147,10 @@ docker run --env-file .env titan-oanda-algo
 #### Start the MTF Confluence Strategy
 ```bash
 # Multi-Timeframe Confluence Strategy (H1 + H4 + D + W)
-uv run python execution/run_live_mtf.py
+uv run python scripts/run_live_mtf.py
 
 # OR for the ML Strategy:
-uv run python execution/run_nautilus_live.py
+uv run python scripts/run_live_ml.py
 ```
 The engine will:
 1. Load instruments from OANDA.

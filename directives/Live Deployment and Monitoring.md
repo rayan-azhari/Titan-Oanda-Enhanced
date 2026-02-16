@@ -10,10 +10,10 @@ Containerise the Nautilus system and deploy it to a low-latency **Google Compute
 > **All items must pass before deployment.**
 
 - [ ] `config/risk.toml` reviewed — max drawdown, position limits, daily loss cap
-- [ ] `execution/kill_switch.py` tested on practice account
+- [ ] `scripts/kill_switch.py` tested on practice account
 - [ ] OOS Sharpe ≥ 50% of IS Sharpe (from VBT optimisation)
 - [ ] Model Sharpe ≥ 1.5 (from `train_ml_model.py`)
-- [ ] `execution/validate_data.py` passed on latest data
+- [ ] `titan/data/validation.py` passed on latest data
 
 ## Local Practice Deployment
 
@@ -30,12 +30,12 @@ Run the specific runner for your strategy:
 
 **A. Multi-Timeframe Confluence (Signal-Based)**
 ```bash
-uv run python execution/run_live_mtf.py
+uv run python scripts/run_live_mtf.py
 ```
 
 **B. ML Strategy (XGBoost)**
 ```bash
-uv run python execution/run_nautilus_live.py
+uv run python scripts/run_live_ml.py
 ```
 
 ### 3. Validation
@@ -48,7 +48,7 @@ uv run python execution/run_nautilus_live.py
 
 ### 1. Containerisation
 
-- **DevOps Agent** runs `execution/build_docker_image.py`.
+- **DevOps Agent** runs `scripts/build_docker.py`.
 - Base: `python:3.11-slim` with `nautilus_trader` wheel.
 
 > [!IMPORTANT]
@@ -63,7 +63,7 @@ uv run python execution/run_nautilus_live.py
 
 - Initialise "Guardian" agent in headless mode.
 - **Task:** SSH log monitoring for `"ERROR"` strings.
-- **Notification:** Trigger Slack alert on failure via `execution/send_notification.py`.
+- **Notification:** Trigger Slack alert on failure via `titan/utils/notification.py`.
 
 ## Success Criteria
 

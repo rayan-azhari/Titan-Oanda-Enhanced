@@ -52,7 +52,7 @@ We need to tell the system your OANDA secret password.
 
 1.  Run the setup script:
     ```bash
-    uv run python execution/setup_env.py
+    uv run python scripts/setup_env.py
     ```
 2.  It will ask for your **Account ID** and **Token**. Paste them in.
 3.  It creates a hidden file called `.env`.
@@ -60,7 +60,7 @@ We need to tell the system your OANDA secret password.
 **Sanity Check:**
 Run this verification script. If it works, you are ready to go!
 ```bash
-uv run python execution/verify_connection.py
+uv run python scripts/verify_connection.py
 ```
 ✅ **Success:** You see "Connected to OANDA", your account balance, and open trades.
 ❌ **Failure:** "Unauthorized" or "Connection Error". Check your Token and Account ID in `.env`.
@@ -73,7 +73,7 @@ We cannot trade without knowing what the market did in the past.
 
 **The Command:**
 ```bash
-uv run python execution/download_oanda_data.py
+uv run python titan/data/fetch_eur_usd.py
 ```
 
 **What it does:**
@@ -92,7 +92,7 @@ Now we play "What If?". What if we bought every time RSI was below 30 last year?
 
 **The Command:**
 ```bash
-uv run python execution/run_vbt_optimisation.py
+uv run python research/alpha_loop/run_vbt_optimisation.py
 ```
 
 **What it does:**
@@ -112,7 +112,7 @@ This is the **Titan Sequence** — the bridge between simple backtesting and int
 
 **The Command:**
 ```bash
-uv run python execution/run_feature_selection.py
+uv run python research/alpha_loop/run_feature_selection.py
 ```
 
 **What it does:**
@@ -151,7 +151,7 @@ The **Gaussian Channel** is a volatility-based indicator from the Ehlers Gaussia
 
 **The Command:**
 ```bash
-uv run python execution/run_gaussian_optimisation.py
+uv run python research/gaussian/run_optimisation.py
 ```
 
 **What it does:**
@@ -184,7 +184,7 @@ This is our **best performing strategy** (Sharpe 1.75 on EUR/USD). It filters ou
 
 **The Command:**
 ```bash
-uv run python execution/run_mtf_backtest.py
+uv run python scripts/run_backtest_mtf.py
 ```
 
 **How it works:**
@@ -216,9 +216,9 @@ We found these exact settings through a rigorous 3-stage sweep:
 
 To re-run this optimization yourself (e.g., for a different pair):
 ```bash
-uv run python execution/run_mtf_optimisation.py  # Stage 1
-uv run python execution/run_mtf_stage2.py        # Stage 2
-uv run python execution/run_mtf_stage3.py        # Stage 3
+uv run python research/mtf/run_optimisation.py  # Stage 1
+uv run python research/mtf/run_stage2.py        # Stage 2
+uv run python research/mtf/run_stage3.py        # Stage 3
 ```
 
 **Sanity Check:**
@@ -233,7 +233,7 @@ Simple rules (RSI < 30) are good, but AI is better. The ML pipeline now **automa
 
 **The Command (full pipeline):**
 ```bash
-uv run python execution/run_ml_strategy.py
+uv run python research/ml/run_pipeline.py
 ```
 
 **What it does:**
@@ -256,7 +256,7 @@ For the **Multi-Timeframe Confluence Strategy** (our robust, signal-based logic)
 
 **The Command:**
 ```bash
-uv run python execution/run_live_mtf.py
+uv run python scripts/run_live_mtf.py
 ```
 
 **What it does:**
@@ -279,13 +279,13 @@ This is it. The system connects to OANDA and trades for real.
 
 **Option A: ML Strategy (The Big Gun)**
 ```bash
-uv run python execution/run_nautilus_live.py
+uv run python scripts/run_live_ml.py
 ```
 *Uses the latest .joblib model trained by the ML pipeline from `models/`.*
 
 **Option B: MTF Confluence Strategy (The Reliable One)**
 ```bash
-uv run python execution/run_live_mtf.py
+uv run python scripts/run_live_mtf.py
 ```
 *Uses the H1+H4+D+W trend confluence logic. Prints a status dashboard every hour.*
 
@@ -318,7 +318,7 @@ If the bot goes crazy or you just want out **NOW**.
 
 **The Command:**
 ```bash
-uv run python execution/kill_switch.py
+uv run python scripts/kill_switch.py
 ```
 
 **What it does:**
@@ -349,7 +349,7 @@ If you want the bot to run 24/7 without your laptop being on, you use **Docker**
 
 1.  **Build the Container:**
     ```bash
-    uv run python execution/build_docker_image.py
+    uv run python scripts/build_docker.py
     ```
 2.  **Run It:**
     ```bash

@@ -14,13 +14,13 @@ Original Hypothesis: Implement a Multi-Timeframe (MTF) Gaussian Channel strategy
 
 ### 1. Indicator Construction (Numba)
 
-- ✅ Already implemented in `execution/indicators/gaussian_filter.py`.
+- ✅ Already implemented in `titan/indicators/gaussian_filter.py`.
 - Accepts dynamic `poles` (smoothness) and `period` inputs.
 - Wrapped in `vbt.IndicatorFactory` as `GaussianChannel`.
 
 ### 2. The MTF Factory (VectorBT)
 
-Create a script `execution/run_gaussian_confluence.py`:
+Create a script `research/gaussian/run_confluence.py`:
 
 - **Step A: Resample** — Take H1 Close prices and resample to H4, D1, W1.
 - **Step B: Calculate** — Run the Gaussian Channel logic on all four series independently.

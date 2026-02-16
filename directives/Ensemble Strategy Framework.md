@@ -44,7 +44,7 @@ Run **multiple uncorrelated strategies** simultaneously, combining their signals
 
 ### 3. Correlation Check
 
-- **Researcher Agent** runs `execution/run_ensemble.py`.
+- **Researcher Agent** runs `research/ml/run_ensemble.py`.
 - Strategies with pairwise correlation > `correlation_threshold` (default 0.70) have their weights automatically reduced.
 
 ### 4. Signal Generation

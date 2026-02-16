@@ -10,9 +10,9 @@ The adapter connects NautilusTrader's abstract interfaces to OANDA's v20 REST an
 
 | Component | Nautilus Interface | OANDA Endpoint | Implementation |
 |---|---|---|---|
-| **Instruments** | `InstrumentProvider` | `GET /v3/accounts/{id}/instruments` | `execution/nautilus_oanda/instruments.py` |
-| **Data** | `LiveDataClient` | `GET /v3/accounts/{id}/pricing/stream` | `execution/nautilus_oanda/data.py` |
-| **Execution** | `LiveExecutionClient` | `POST /v3/accounts/{id}/orders` | `execution/nautilus_oanda/execution.py` |
+| **Instruments** | `InstrumentProvider` | `GET /v3/accounts/{id}/instruments` | `titan/adapters/oanda/instruments.py` |
+| **Data** | `LiveDataClient` | `GET /v3/accounts/{id}/pricing/stream` | `titan/adapters/oanda/data.py` |
+| **Execution** | `LiveExecutionClient` | `POST /v3/accounts/{id}/orders` | `titan/adapters/oanda/execution.py` |
 
 ## Implementation Details
 
@@ -33,7 +33,7 @@ The adapter connects NautilusTrader's abstract interfaces to OANDA's v20 REST an
 - Listens to the **Transactions Stream** for execution reports (fills, cancels).
 
 ### Phase 4 — Integration (`run_nautilus_live.py`)
-- New entry point `execution/run_nautilus_live.py`.
+- New entry point `scripts/run_live_ml.py`.
 - Configures `TradingNode` with the custom adapter components.
 - Loads instruments and starts the event loop.
 
@@ -41,4 +41,4 @@ The adapter connects NautilusTrader's abstract interfaces to OANDA's v20 REST an
 
 - **Environment:** Requires `nautilus_trader` (Rust extension). verified installed.
 - **Unit Tests:** `tests/test_nautilus_instruments.py` (and others).
-- **Live Test:** `execution/run_nautilus_live.py` (interactive).
+- **Live Test:** `scripts/run_live_ml.py` (interactive).
