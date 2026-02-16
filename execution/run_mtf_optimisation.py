@@ -85,9 +85,7 @@ def compute_ma(close: pd.Series, period: int, ma_type: str) -> pd.Series:
         return close.ewm(span=period, adjust=False).mean()
     elif ma_type == "WMA":
         weights = np.arange(1, period + 1, dtype=float)
-        return close.rolling(period).apply(
-            lambda x: np.dot(x, weights) / weights.sum(), raw=True
-        )
+        return close.rolling(period).apply(lambda x: np.dot(x, weights) / weights.sum(), raw=True)
     else:  # SMA (default)
         return close.rolling(period).mean()
 
@@ -280,9 +278,7 @@ def main() -> None:
 
         # Compute confluence once per MA type (threshold changes don't
         # affect the indicator, only the entry/exit signals)
-        confluence, primary_df = compute_confluence(
-            pair, mtf_config, timeframes, ma_type
-        )
+        confluence, primary_df = compute_confluence(pair, mtf_config, timeframes, ma_type)
         close = primary_df["close"]
 
         # Spread cost
@@ -306,23 +302,14 @@ def main() -> None:
             oos_short = extract_stats(oos_res["short"])
 
             # Parity ratios
-            long_parity = (
-                oos_long["sharpe"] / is_long["sharpe"]
-                if is_long["sharpe"] != 0
-                else 0
-            )
+            long_parity = oos_long["sharpe"] / is_long["sharpe"] if is_long["sharpe"] != 0 else 0
             short_parity = (
-                oos_short["sharpe"] / is_short["sharpe"]
-                if is_short["sharpe"] != 0
-                else 0
+                oos_short["sharpe"] / is_short["sharpe"] if is_short["sharpe"] != 0 else 0
             )
 
             # Combined Sharpe (average of long + short IS+OOS)
             combined_sharpe = (
-                is_long["sharpe"]
-                + is_short["sharpe"]
-                + oos_long["sharpe"]
-                + oos_short["sharpe"]
+                is_long["sharpe"] + is_short["sharpe"] + oos_long["sharpe"] + oos_short["sharpe"]
             ) / 4
 
             results.append(
@@ -382,26 +369,34 @@ def main() -> None:
     print(f"  Threshold:  {best['threshold']:.2f}")
     print(f"  Combined Sharpe: {best['combined_sharpe']:.4f}")
     print()
-    print(f"  IS  LONG:   ret={best['is_long_ret']:.2%}  "
-          f"sharpe={best['is_long_sharpe']:.3f}  "
-          f"dd={best['is_long_dd']:.2%}  "
-          f"trades={int(best['is_long_trades'])}  "
-          f"wr={best['is_long_wr']:.1%}")
-    print(f"  IS  SHORT:  ret={best['is_short_ret']:.2%}  "
-          f"sharpe={best['is_short_sharpe']:.3f}  "
-          f"dd={best['is_short_dd']:.2%}  "
-          f"trades={int(best['is_short_trades'])}  "
-          f"wr={best['is_short_wr']:.1%}")
-    print(f"  OOS LONG:   ret={best['oos_long_ret']:.2%}  "
-          f"sharpe={best['oos_long_sharpe']:.3f}  "
-          f"dd={best['oos_long_dd']:.2%}  "
-          f"trades={int(best['oos_long_trades'])}  "
-          f"wr={best['oos_long_wr']:.1%}")
-    print(f"  OOS SHORT:  ret={best['oos_short_ret']:.2%}  "
-          f"sharpe={best['oos_short_sharpe']:.3f}  "
-          f"dd={best['oos_short_dd']:.2%}  "
-          f"trades={int(best['oos_short_trades'])}  "
-          f"wr={best['oos_short_wr']:.1%}")
+    print(
+        f"  IS  LONG:   ret={best['is_long_ret']:.2%}  "
+        f"sharpe={best['is_long_sharpe']:.3f}  "
+        f"dd={best['is_long_dd']:.2%}  "
+        f"trades={int(best['is_long_trades'])}  "
+        f"wr={best['is_long_wr']:.1%}"
+    )
+    print(
+        f"  IS  SHORT:  ret={best['is_short_ret']:.2%}  "
+        f"sharpe={best['is_short_sharpe']:.3f}  "
+        f"dd={best['is_short_dd']:.2%}  "
+        f"trades={int(best['is_short_trades'])}  "
+        f"wr={best['is_short_wr']:.1%}"
+    )
+    print(
+        f"  OOS LONG:   ret={best['oos_long_ret']:.2%}  "
+        f"sharpe={best['oos_long_sharpe']:.3f}  "
+        f"dd={best['oos_long_dd']:.2%}  "
+        f"trades={int(best['oos_long_trades'])}  "
+        f"wr={best['oos_long_wr']:.1%}"
+    )
+    print(
+        f"  OOS SHORT:  ret={best['oos_short_ret']:.2%}  "
+        f"sharpe={best['oos_short_sharpe']:.3f}  "
+        f"dd={best['oos_short_dd']:.2%}  "
+        f"trades={int(best['oos_short_trades'])}  "
+        f"wr={best['oos_short_wr']:.1%}"
+    )
     print(f"  Long Parity:  {best['long_parity']:.2f}")
     print(f"  Short Parity: {best['short_parity']:.2f}")
 

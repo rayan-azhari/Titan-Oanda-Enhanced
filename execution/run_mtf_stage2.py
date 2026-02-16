@@ -88,9 +88,7 @@ def compute_rsi(close: pd.Series, period: int = 14) -> pd.Series:
     return 100 - (100 / (1 + rs))
 
 
-def compute_tf_signal(
-    close: pd.Series, fast_ma: int, slow_ma: int, rsi_period: int
-) -> pd.Series:
+def compute_tf_signal(close: pd.Series, fast_ma: int, slow_ma: int, rsi_period: int) -> pd.Series:
     """Directional signal for one TF using SMA."""
     fast = close.rolling(fast_ma).mean()
     slow = close.rolling(slow_ma).mean()
@@ -171,65 +169,91 @@ def main() -> None:
 
     for i, weights in enumerate(weight_combos):
         # Build confluence from pre-computed signals
-        confluence = sum(
-            tf_signals[tf] * weights[tf]
-            for tf in tfs
-            if tf in tf_signals
-        )
+        confluence = sum(tf_signals[tf] * weights[tf] for tf in tfs if tf in tf_signals)
 
         is_conf = confluence.iloc[:split]
         oos_conf = confluence.iloc[split:]
 
         # IS backtest
-        is_long = extract_stats(vbt.Portfolio.from_signals(
-            is_close,
-            entries=is_conf >= THRESHOLD,
-            exits=is_conf < 0,
-            init_cash=10_000, fees=avg_spread, freq="4h",
-        ))
-        is_short = extract_stats(vbt.Portfolio.from_signals(
-            is_close,
-            entries=pd.Series(False, index=is_close.index),
-            exits=pd.Series(False, index=is_close.index),
-            short_entries=is_conf <= -THRESHOLD,
-            short_exits=is_conf > 0,
-            init_cash=10_000, fees=avg_spread, freq="4h",
-        ))
+        is_long = extract_stats(
+            vbt.Portfolio.from_signals(
+                is_close,
+                entries=is_conf >= THRESHOLD,
+                exits=is_conf < 0,
+                init_cash=10_000,
+                fees=avg_spread,
+                freq="4h",
+            )
+        )
+        is_short = extract_stats(
+            vbt.Portfolio.from_signals(
+                is_close,
+                entries=pd.Series(False, index=is_close.index),
+                exits=pd.Series(False, index=is_close.index),
+                short_entries=is_conf <= -THRESHOLD,
+                short_exits=is_conf > 0,
+                init_cash=10_000,
+                fees=avg_spread,
+                freq="4h",
+            )
+        )
 
         # OOS backtest
-        oos_long = extract_stats(vbt.Portfolio.from_signals(
-            oos_close,
-            entries=oos_conf >= THRESHOLD,
-            exits=oos_conf < 0,
-            init_cash=10_000, fees=avg_spread, freq="4h",
-        ))
-        oos_short = extract_stats(vbt.Portfolio.from_signals(
-            oos_close,
-            entries=pd.Series(False, index=oos_close.index),
-            exits=pd.Series(False, index=oos_close.index),
-            short_entries=oos_conf <= -THRESHOLD,
-            short_exits=oos_conf > 0,
-            init_cash=10_000, fees=avg_spread, freq="4h",
-        ))
+        oos_long = extract_stats(
+            vbt.Portfolio.from_signals(
+                oos_close,
+                entries=oos_conf >= THRESHOLD,
+                exits=oos_conf < 0,
+                init_cash=10_000,
+                fees=avg_spread,
+                freq="4h",
+            )
+        )
+        oos_short = extract_stats(
+            vbt.Portfolio.from_signals(
+                oos_close,
+                entries=pd.Series(False, index=oos_close.index),
+                exits=pd.Series(False, index=oos_close.index),
+                short_entries=oos_conf <= -THRESHOLD,
+                short_exits=oos_conf > 0,
+                init_cash=10_000,
+                fees=avg_spread,
+                freq="4h",
+            )
+        )
 
         # Parity
         lp = oos_long["sharpe"] / is_long["sharpe"] if is_long["sharpe"] != 0 else 0
         sp = oos_short["sharpe"] / is_short["sharpe"] if is_short["sharpe"] != 0 else 0
         cs = (is_long["sharpe"] + is_short["sharpe"] + oos_long["sharpe"] + oos_short["sharpe"]) / 4
 
-        results.append({
-            "w_H1": weights["H1"], "w_H4": weights["H4"],
-            "w_D": weights["D"], "w_W": weights["W"],
-            "is_long_ret": is_long["ret"], "is_long_sharpe": is_long["sharpe"],
-            "is_long_dd": is_long["dd"], "is_long_trades": is_long["trades"],
-            "is_short_ret": is_short["ret"], "is_short_sharpe": is_short["sharpe"],
-            "is_short_dd": is_short["dd"], "is_short_trades": is_short["trades"],
-            "oos_long_ret": oos_long["ret"], "oos_long_sharpe": oos_long["sharpe"],
-            "oos_long_dd": oos_long["dd"], "oos_long_trades": oos_long["trades"],
-            "oos_short_ret": oos_short["ret"], "oos_short_sharpe": oos_short["sharpe"],
-            "oos_short_dd": oos_short["dd"], "oos_short_trades": oos_short["trades"],
-            "long_parity": lp, "short_parity": sp, "combined_sharpe": cs,
-        })
+        results.append(
+            {
+                "w_H1": weights["H1"],
+                "w_H4": weights["H4"],
+                "w_D": weights["D"],
+                "w_W": weights["W"],
+                "is_long_ret": is_long["ret"],
+                "is_long_sharpe": is_long["sharpe"],
+                "is_long_dd": is_long["dd"],
+                "is_long_trades": is_long["trades"],
+                "is_short_ret": is_short["ret"],
+                "is_short_sharpe": is_short["sharpe"],
+                "is_short_dd": is_short["dd"],
+                "is_short_trades": is_short["trades"],
+                "oos_long_ret": oos_long["ret"],
+                "oos_long_sharpe": oos_long["sharpe"],
+                "oos_long_dd": oos_long["dd"],
+                "oos_long_trades": oos_long["trades"],
+                "oos_short_ret": oos_short["ret"],
+                "oos_short_sharpe": oos_short["sharpe"],
+                "oos_short_dd": oos_short["dd"],
+                "oos_short_trades": oos_short["trades"],
+                "long_parity": lp,
+                "short_parity": sp,
+                "combined_sharpe": cs,
+            }
+        )
 
         if (i + 1) % 200 == 0:
             print(f"  [{i + 1}/{len(weight_combos)}] combos done...")
@@ -254,15 +278,41 @@ def main() -> None:
     print(f"  H1={best.w_H1:.2f}  H4={best.w_H4:.2f}  D={best.w_D:.2f}  W={best.w_W:.2f}")
     print(f"  Combined Sharpe: {best.combined_sharpe:.4f}")
     print()
-    print(f"  IS  LONG:   ret={best.is_long_ret:.2%}  sharpe={best.is_long_sharpe:.3f}  dd={best.is_long_dd:.2%}  trades={int(best.is_long_trades)}")
-    print(f"  IS  SHORT:  ret={best.is_short_ret:.2%}  sharpe={best.is_short_sharpe:.3f}  dd={best.is_short_dd:.2%}  trades={int(best.is_short_trades)}")
-    print(f"  OOS LONG:   ret={best.oos_long_ret:.2%}  sharpe={best.oos_long_sharpe:.3f}  dd={best.oos_long_dd:.2%}  trades={int(best.oos_long_trades)}")
-    print(f"  OOS SHORT:  ret={best.oos_short_ret:.2%}  sharpe={best.oos_short_sharpe:.3f}  dd={best.oos_short_dd:.2%}  trades={int(best.oos_short_trades)}")
+    print(
+        f"  IS  LONG:   ret={best.is_long_ret:.2%}  "
+        f"sharpe={best.is_long_sharpe:.3f}  "
+        f"dd={best.is_long_dd:.2%}  "
+        f"trades={int(best.is_long_trades)}"
+    )
+    print(
+        f"  IS  SHORT:  ret={best.is_short_ret:.2%}  "
+        f"sharpe={best.is_short_sharpe:.3f}  "
+        f"dd={best.is_short_dd:.2%}  "
+        f"trades={int(best.is_short_trades)}"
+    )
+    print(
+        f"  OOS LONG:   ret={best.oos_long_ret:.2%}  "
+        f"sharpe={best.oos_long_sharpe:.3f}  "
+        f"dd={best.oos_long_dd:.2%}  "
+        f"trades={int(best.oos_long_trades)}"
+    )
+    print(
+        f"  OOS SHORT:  ret={best.oos_short_ret:.2%}  "
+        f"sharpe={best.oos_short_sharpe:.3f}  "
+        f"dd={best.oos_short_dd:.2%}  "
+        f"trades={int(best.oos_short_trades)}"
+    )
     print(f"  Parity: L={best.long_parity:.2f}  S={best.short_parity:.2f}")
 
     # Compare to current weights
     curr = mtf_config.get("weights", {})
-    print(f"\n  Current weights: H1={curr.get('H1',0):.2f}  H4={curr.get('H4',0):.2f}  D={curr.get('D',0):.2f}  W={curr.get('W',0):.2f}")
+    print(
+        f"\n  Current weights: "
+        f"H1={curr.get('H1', 0):.2f}  "
+        f"H4={curr.get('H4', 0):.2f}  "
+        f"D={curr.get('D', 0):.2f}  "
+        f"W={curr.get('W', 0):.2f}"
+    )
 
     # Top 10
     print("\n--- TOP 10 ---")
@@ -278,6 +328,7 @@ def main() -> None:
     # Heatmap (H4 vs D, aggregated across H1/W)
     try:
         import plotly.express as px
+
         agg = valid.groupby(["w_H4", "w_D"])["combined_sharpe"].max().reset_index()
         pivot = agg.pivot(index="w_D", columns="w_H4", values="combined_sharpe")
         fig = px.imshow(

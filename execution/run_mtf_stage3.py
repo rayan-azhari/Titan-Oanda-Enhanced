@@ -104,9 +104,7 @@ def compute_rsi(close: pd.Series, period: int = 14) -> pd.Series:
     return 100 - (100 / (1 + rs))
 
 
-def compute_tf_signal(
-    close: pd.Series, fast_ma: int, slow_ma: int, rsi_period: int
-) -> pd.Series:
+def compute_tf_signal(close: pd.Series, fast_ma: int, slow_ma: int, rsi_period: int) -> pd.Series:
     """Directional signal for one TF using SMA."""
     fast = close.rolling(fast_ma).mean()
     slow = close.rolling(slow_ma).mean()
@@ -130,20 +128,28 @@ def extract_stats(pf) -> dict:
 
 def run_backtest(close, confluence, fees):
     """Run IS or OOS backtest, return long+short stats."""
-    long = extract_stats(vbt.Portfolio.from_signals(
-        close,
-        entries=confluence >= THRESHOLD,
-        exits=confluence < 0,
-        init_cash=10_000, fees=fees, freq="4h",
-    ))
-    short = extract_stats(vbt.Portfolio.from_signals(
-        close,
-        entries=pd.Series(False, index=close.index),
-        exits=pd.Series(False, index=close.index),
-        short_entries=confluence <= -THRESHOLD,
-        short_exits=confluence > 0,
-        init_cash=10_000, fees=fees, freq="4h",
-    ))
+    long = extract_stats(
+        vbt.Portfolio.from_signals(
+            close,
+            entries=confluence >= THRESHOLD,
+            exits=confluence < 0,
+            init_cash=10_000,
+            fees=fees,
+            freq="4h",
+        )
+    )
+    short = extract_stats(
+        vbt.Portfolio.from_signals(
+            close,
+            entries=pd.Series(False, index=close.index),
+            exits=pd.Series(False, index=close.index),
+            short_entries=confluence <= -THRESHOLD,
+            short_exits=confluence > 0,
+            init_cash=10_000,
+            fees=fees,
+            freq="4h",
+        )
+    )
     return long, short
 
 
@@ -258,7 +264,9 @@ def main() -> None:
 
             lp = oos_long["sharpe"] / is_long["sharpe"] if is_long["sharpe"] != 0 else 0
             sp = oos_short["sharpe"] / is_short["sharpe"] if is_short["sharpe"] != 0 else 0
-            cs = (is_long["sharpe"] + is_short["sharpe"] + oos_long["sharpe"] + oos_short["sharpe"]) / 4
+            cs = (
+                is_long["sharpe"] + is_short["sharpe"] + oos_long["sharpe"] + oos_short["sharpe"]
+            ) / 4
 
             row = {
                 "sweep_tf": sweep_tf,
@@ -290,9 +298,11 @@ def main() -> None:
         # Lock in best for this TF
         if best_combo:
             best_params[sweep_tf] = best_combo
-            print(f"\n  Best {sweep_tf}: fast={best_combo['fast_ma']} "
-                  f"slow={best_combo['slow_ma']} rsi={best_combo['rsi_period']} "
-                  f"combined_sharpe={best_cs:.4f}")
+            print(
+                f"\n  Best {sweep_tf}: fast={best_combo['fast_ma']} "
+                f"slow={best_combo['slow_ma']} rsi={best_combo['rsi_period']} "
+                f"combined_sharpe={best_cs:.4f}"
+            )
         else:
             print(f"  No improvement for {sweep_tf}, keeping defaults.")
 
@@ -308,7 +318,11 @@ def main() -> None:
     print("=" * 60)
     for tf in SWEEP_ORDER:
         p = best_params[tf]
-        print(f"  {tf:3s}: fast_ma={p['fast_ma']:3d}  slow_ma={p['slow_ma']:3d}  rsi={p['rsi_period']:2d}")
+        print(
+            f"  {tf:3s}: fast_ma={p['fast_ma']:3d}  "
+            f"slow_ma={p['slow_ma']:3d}  "
+            f"rsi={p['rsi_period']:2d}"
+        )
 
     # Run final combined backtest with all best params
     print("\n--- Final Backtest with All Optimised Params ---")
@@ -335,10 +349,30 @@ def main() -> None:
     sp = oos_short["sharpe"] / is_short["sharpe"] if is_short["sharpe"] != 0 else 0
 
     print(f"  Combined Sharpe: {cs:.4f}")
-    print(f"  IS  LONG:   ret={is_long['ret']:.2%}  sharpe={is_long['sharpe']:.3f}  dd={is_long['dd']:.2%}  trades={is_long['trades']}")
-    print(f"  IS  SHORT:  ret={is_short['ret']:.2%}  sharpe={is_short['sharpe']:.3f}  dd={is_short['dd']:.2%}  trades={is_short['trades']}")
-    print(f"  OOS LONG:   ret={oos_long['ret']:.2%}  sharpe={oos_long['sharpe']:.3f}  dd={oos_long['dd']:.2%}  trades={oos_long['trades']}")
-    print(f"  OOS SHORT:  ret={oos_short['ret']:.2%}  sharpe={oos_short['sharpe']:.3f}  dd={oos_short['dd']:.2%}  trades={oos_short['trades']}")
+    print(
+        f"  IS  LONG:   ret={is_long['ret']:.2%}  "
+        f"sharpe={is_long['sharpe']:.3f}  "
+        f"dd={is_long['dd']:.2%}  "
+        f"trades={is_long['trades']}"
+    )
+    print(
+        f"  IS  SHORT:  ret={is_short['ret']:.2%}  "
+        f"sharpe={is_short['sharpe']:.3f}  "
+        f"dd={is_short['dd']:.2%}  "
+        f"trades={is_short['trades']}"
+    )
+    print(
+        f"  OOS LONG:   ret={oos_long['ret']:.2%}  "
+        f"sharpe={oos_long['sharpe']:.3f}  "
+        f"dd={oos_long['dd']:.2%}  "
+        f"trades={oos_long['trades']}"
+    )
+    print(
+        f"  OOS SHORT:  ret={oos_short['ret']:.2%}  "
+        f"sharpe={oos_short['sharpe']:.3f}  "
+        f"dd={oos_short['dd']:.2%}  "
+        f"trades={oos_short['trades']}"
+    )
     print(f"  Parity: L={lp:.2f}  S={sp:.2f}")
 
     # ── Save optimised config ──
