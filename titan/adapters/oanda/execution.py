@@ -111,9 +111,11 @@ class OandaExecutionClient(LiveExecutionClient):
     async def _stream_transactions(self):
         """Stream transaction events (fills, cancels)."""
         try:
+            print("DEBUG: _stream_transactions STARTING", flush=True)
             r = transactions.TransactionsStream(accountID=self._account_id)
             await self._loop.run_in_executor(None, self._consume_stream, r)
         except Exception as e:
+            print(f"DEBUG: _stream_transactions ERROR: {e}", flush=True)
             self._log.error(f"Transaction stream error: {e}")
 
     def _consume_stream(self, request):
@@ -121,7 +123,7 @@ class OandaExecutionClient(LiveExecutionClient):
         try:
             for line in self._api.request(request):
                 if line["type"] in ("ORDER_FILL", "ORDER_CANCEL", "ORDER_CREATE"):
-                    self._loop.call_soon_threadsafe(self._handle_event, line)
+                     self._loop.call_soon_threadsafe(self._handle_event, line)
         except Exception as e:
             self._log.error(f"Transaction stream failed: {e}")
 
@@ -136,32 +138,39 @@ class OandaExecutionClient(LiveExecutionClient):
         Args:
             data: Raw OANDA transaction JSON dict.
         """
-        event_type = data.get("type", "")
-        transaction_id = data.get("id", "unknown")
+        try:
+            event_type = data.get("type", "")
+            transaction_id = data.get("id", "unknown")
+            
+            # Extract the Nautilus ClientOrderId
+            # 1. Try clientExtensions (common for OrderSubmit/Cancel)
+            client_ext = data.get("clientExtensions", {})
+            client_order_id_str = client_ext.get("id")
 
-        # Extract the Nautilus ClientOrderId from OANDA clientExtensions
-        client_ext = data.get("clientExtensions", {})
-        client_order_id_str = client_ext.get("id")
+            # 2. Try clientOrderID (common for OrderFill)
+            if not client_order_id_str:
+                client_order_id_str = data.get("clientOrderID")
+            
+            if not client_order_id_str:
+                return
 
-        if not client_order_id_str:
-            # Not a Nautilus-originated order; log and skip
-            self._log.debug(
-                f"Transaction {transaction_id} ({event_type}) has no "
-                f"clientExtensions.id — skipping."
-            )
-            return
+            try:
+                client_order_id = ClientOrderId(client_order_id_str)
+            except Exception as e:
+                self._log.warning(f"Failed to create ClientOrderId from '{client_order_id_str}': {e}")
+                return
 
-        client_order_id = ClientOrderId(client_order_id_str)
-        venue_order_id = VenueOrderId(str(data.get("orderID", transaction_id)))
+            venue_order_id = VenueOrderId(str(data.get("orderID", transaction_id)))
 
-        if event_type == "ORDER_FILL":
-            self._handle_fill(data, client_order_id, venue_order_id)
-        elif event_type == "ORDER_CANCEL":
-            self._handle_cancel(data, client_order_id, venue_order_id)
-        elif event_type == "ORDER_CREATE":
-            self._log.info(f"Order created on OANDA: {venue_order_id} (client: {client_order_id})")
-        else:
-            self._log.debug(f"Unhandled transaction type: {event_type}")
+            if event_type == "ORDER_FILL":
+                self._handle_fill(data, client_order_id, venue_order_id)
+            elif event_type == "ORDER_CANCEL":
+                self._handle_cancel(data, client_order_id, venue_order_id)
+            elif event_type == "ORDER_CREATE":
+                self._log.info(f"Order created on OANDA: {venue_order_id} (client: {client_order_id})")
+
+        except Exception as e:
+            self._log.error(f"Error handling event: {e}")
 
     def _handle_fill(
         self, data: dict, client_order_id: ClientOrderId, venue_order_id: VenueOrderId
@@ -203,13 +212,15 @@ class OandaExecutionClient(LiveExecutionClient):
             venue_order_id=venue_order_id,
             account_id=AccountId(f"OANDA-{self._account_id}"),
             trade_id=TradeId(str(data.get("id", "0"))),
+            position_id=None,  # OANDA doesn't provide position ID on fill
             order_side=order.side,
             order_type=order.order_type,
             last_qty=Quantity(units, precision=0),
             last_px=Price(fill_price, precision=precision),
             currency=Currency.from_str(quote_ccy),
             commission=Money(commission, Currency.from_str(quote_ccy)),
-            liquidity_side=LiquiditySide.TAKER,
+            liquidity_side=LiquiditySide.TAKER,  # Assumed TAKER for market orders
+            event_id=UUID4(),
             ts_event=timestamp.value,
             ts_init=self._clock.timestamp_ns(),
         )
@@ -251,8 +262,13 @@ class OandaExecutionClient(LiveExecutionClient):
         self._msgbus.send(endpoint="ExecEngine.process", msg=canceled)
         self._log.info(f"ORDER_CANCEL: {client_order_id} reason={reason}")
 
-    async def submit_order(self, order: Order):
+    def submit_order(self, command):
         """Submit an order to OANDA."""
+        # Schedule the async submission on the loop
+        # command is nautilus_trader.execution.messages.SubmitOrder
+        self._loop.create_task(self._submit_order_async(command.order))
+
+    async def _submit_order_async(self, order: Order):
         # 1. Map Nautilus Order to OANDA dict
         data = self._map_order(order)
 
@@ -286,6 +302,7 @@ class OandaExecutionClient(LiveExecutionClient):
         # }
 
         units = int(order.quantity)
+
         if order.side == OrderSide.SELL:
             units = -units
 
@@ -318,8 +335,12 @@ class OandaExecutionClient(LiveExecutionClient):
 
         return data
 
-    async def cancel_order(self, command) -> None:
-        """Cancel an order on OANDA.
+    def cancel_order(self, command) -> None:
+        """Cancel an order on OANDA."""
+        self._loop.create_task(self._cancel_order_async(command))
+
+    async def _cancel_order_async(self, command) -> None:
+        """Cancel an order on OANDA (Async implementation).
 
         Uses the OANDA OrderCancel endpoint to cancel a pending order.
         The confirmation arrives asynchronously via the transaction stream

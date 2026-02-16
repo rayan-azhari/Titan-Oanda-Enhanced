@@ -28,9 +28,34 @@ class OandaInstrumentProvider(InstrumentProvider):
         self._account_id = config.account_id
 
     def load_all(self) -> List[CurrencyPair]:
-        """Fetch all available instruments and convert to Nautilus CurrencyPairs."""
+        """Fetch all available instruments with retries."""
         r = accounts.AccountInstruments(accountID=self._account_id)
-        self._client.request(r)
+        
+        # Retry mechanism for OANDA connection
+        max_retries = 5
+        import time
+        import logging
+        import socket
+        logger = logging.getLogger(__name__)
+
+        default_timeout = socket.getdefaulttimeout()
+        socket.setdefaulttimeout(30)
+
+        for attempt in range(1, max_retries + 1):
+            try:
+                print(f"INFO:titan.oanda:Loading instruments (Attempt {attempt}/{max_retries})...")
+                self._client.request(r)
+                print("INFO:titan.oanda:Instruments loaded successfully.")
+                break
+            except Exception as e:
+                logger.warning(f"Failed to load instruments (Attempt {attempt}/{max_retries}): {e}")
+                if attempt == max_retries:
+                    socket.setdefaulttimeout(default_timeout)
+                    raise e
+                time.sleep(2 * attempt) # Exponential backoff
+        
+        socket.setdefaulttimeout(default_timeout)
+
         instruments = r.response.get("instruments", [])
 
         nautilus_instruments = []
