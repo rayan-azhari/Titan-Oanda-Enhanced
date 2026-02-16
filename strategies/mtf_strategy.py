@@ -11,6 +11,7 @@ from pathlib import Path
 
 import pandas as pd
 from nautilus_trader.config import StrategyConfig
+from nautilus_trader.core.datetime import unix_nanos_to_dt
 from nautilus_trader.model.data import Bar, BarType
 from nautilus_trader.model.enums import OrderSide, TimeInForce
 from nautilus_trader.model.identifiers import InstrumentId
@@ -159,7 +160,7 @@ class MTFConfluenceStrategy(Strategy):
         # Update History
         self.history[tf].append(
             {
-                "time": bar.close_time_as_datetime(),
+                "time": unix_nanos_to_dt(bar.ts_event),
                 "close": float(bar.close),
                 "high": float(bar.high),
                 "low": float(bar.low),
