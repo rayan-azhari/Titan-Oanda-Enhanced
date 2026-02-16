@@ -178,52 +178,70 @@ uv run python research/gaussian/run_optimisation.py
 
 ---
 
-## 🦅 Phase 3.7: Multi-Timeframe Confluence Strategy
+## 🦅 Phase 3.7: Multi-Timeframe Confluence (Deep Dive)
 
-This is our **best performing strategy** (Sharpe 1.75 on EUR/USD). It filters out noise by requiring alignment across Daily, H4, and H1 timeframes.
+This is our **flagship strategy** (Sharpe 1.75+ on EUR/USD). It solves the "noise" problem by requiring alignment across Daily (Trend), H4 (Swing), and H1 (Entry) timeframes.
 
-**The Command:**
+### 🧠 The Logic
+We calculate a **Confluence Score** (-1.0 to +1.0) based on weighted signals from each timeframe:
+
+$$ \text{Score} = (0.6 \times D) + (0.25 \times H4) + (0.1 \times H1) + (0.05 \times W) $$
+
+Each timeframe votes **Long (+1)**, **Short (-1)**, or **Neutral (0)** based on:
+1.  **Trend:** Fast SMA > Slow SMA
+2.  **Momentum:** RSI > 50 (Bullish) or RSI < 50 (Bearish)
+
+**Signals:**
+-   **Long:** Score ≥ **+0.10**
+-   **Short:** Score ≤ **-0.10**
+-   **Exit:** Score returns to Neutral (between -0.1 and +0.1)
+
+### 🔬 The Research Workflow (How we built it)
+We didn't guess these parameters. We used a **3-Stage Optimization Process** located in `research/mtf/`.
+
+#### Stage 1: Core Signal Optimization
+Finds the best moving average type (SMA vs EMA) and signal thresholds.
 ```bash
-uv run python scripts/run_backtest_mtf.py
+uv run python research/mtf/run_optimisation.py
+```
+*Result: SMA is superior to EMA; low threshold (0.1) beats high threshold (0.3).*
+
+#### Stage 2: Weight Optimization
+Determines which timeframe matters most. We simulated thousands of weight combinations.
+```bash
+uv run python research/mtf/run_stage2.py
+```
+*Result: Daily timeframe governs 60% of price action validity.*
+
+#### Stage 3: Period Tuning (The Finetuning)
+Optimizes the specific lookback periods (e.g., Daily SMA 13 vs 20) for the current market regime.
+```bash
+uv run python research/mtf/run_stage3.py
+```
+*Output: Automatically updates `config/mtf.toml` with the best settings.*
+
+#### Stage 4: Out-of-Sample Validation
+Verifies that the strategy isn't overfitting by running it on unseen data.
+```bash
+uv run python research/mtf/run_validation.py
 ```
 
-**How it works:**
-It calculates a weighted "Confluence Score" based on **SMA Crossovers** and **RSI Momentum** across multiple timeframes:
-
-| Timeframe | Weight | Role | Logic |
-|---|---|---|---|
-| **Daily (D)** | **60%** | Trend Bias | SMA(13, 20) + RSI(14) |
-| **H4** | **25%** | Swing Confirm | SMA(10, 50) + RSI(21) |
-| **H1** | **10%** | Entry Timing | SMA(10, 30) + RSI(21) |
-| **Weekly** | **5%** | Regime Filter | SMA(13, 21) + RSI(10) |
-
-**Signal Logic:**
-- **Long:** Confluence Score ≥ +0.10
-- **Short:** Confluence Score ≤ -0.10
-- **Exit:** When score returns to Neutral (between -0.10 and +0.10) or reverses.
-- **Stop Loss:** **NONE** (Signal Only). We rely on the trend reversal.
-
-**Risk Management:**
-- **Size:** 1% Risk Equivalent (Volatility Adjusted).
-- **Rule:** We size the trade so a 2 ATR move = 1% Equity loss.
-- **Why:** This normalizes exposure. High volatility = smaller size. Low volatility = larger size (capped at 5x).
-
-**Optimization Process:**
-We found these exact settings through a rigorous 3-stage sweep:
-1.  **Stage 1:** Determined that **SMA** beats EMA, and a low threshold (**0.10**) is better than 0.30.
-2.  **Stage 2:** Found that **Daily Trend** is the most important factor (60% weight).
-3.  **Stage 3:** Tuned the exact lookback periods for each timeframe independently.
-
-To re-run this optimization yourself (e.g., for a different pair):
+### 📊 Portfolio Analysis
+Want to see how this strategy performs across **all** pairs simultaneously?
 ```bash
-uv run python research/mtf/run_optimisation.py  # Stage 1
-uv run python research/mtf/run_stage2.py        # Stage 2
-uv run python research/mtf/run_stage3.py        # Stage 3
+uv run python research/mtf/run_portfolio.py
 ```
+*Generates a correlation matrix and combined equity curve to test diversification.*
 
-**Sanity Check:**
-- Open `config/mtf.toml` to see the optimized parameters.
-- Check `.tmp/reports/mtf_confluence_EUR_USD_oos.html` to see the strategy performance.
+### ⚙️ Configuration
+The strategy reads from `config/mtf.toml`. You can manually tweak it, but we recommend letting `run_stage3.py` manage it.
+
+```toml
+[eur_usd]
+weights = { D = 0.6, H4 = 0.25, H1 = 0.1, W = 0.05 }
+lower_threshold = -0.1
+upper_threshold = 0.1
+```
 
 ---
 
