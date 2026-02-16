@@ -173,7 +173,8 @@ class MLSignalStrategy(Strategy):
     def _execute_signal(self, signal: int, price: Decimal):
         """Execute trades based on signal (1, -1, 0)."""
         # Get current position
-        position = self.cache.position(self.instrument_id)
+        positions = self.cache.positions(instrument_id=self.instrument_id)
+        position = positions[-1] if positions else None
 
         # Current Size (0 if no position)
         current_qty = position.quantity if position else Decimal(0)

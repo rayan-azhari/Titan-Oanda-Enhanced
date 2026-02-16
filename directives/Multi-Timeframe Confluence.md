@@ -101,3 +101,14 @@ uv run python scripts/run_live_mtf.py
 - **Strategy Class:** `titan.strategies.mtf.strategy` (`MTFConfluenceStrategy`).
 - **Bar Types:** Requires explicit OANDA-specific BarType strings (e.g., `EUR/USD.OANDA-1-HOUR-MID-INTERNAL`) to ensure correct subscription.
 - **Warmup:** The strategy automatically loads historical data from `data/` (parquet) to warm up the indicators instantly. No waiting for live bars required.
+
+## Troubleshooting & Implementation Notes
+
+### Position Retrieval
+- **Error:** `TypeError: Argument 'position_id' has incorrect type`
+- **Cause:** Calling `cache.position(instrument_id)` instead of `cache.positions(instrument_id=...)`.
+- **Fix:** `cache.position()` expects a specific `PositionId` UUID. To find positions by instrument, use:
+    ```python
+    positions = self.cache.positions(instrument_id=self.instrument_id)
+    position = positions[-1] if positions else None
+    ```

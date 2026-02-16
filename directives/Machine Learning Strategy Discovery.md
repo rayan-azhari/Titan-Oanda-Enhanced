@@ -38,3 +38,14 @@ Train and validate a Machine Learning model to predict **price direction** (Clas
 - The saved model is automatically picked up by the live engine.
 - See: `directives/Live Deployment and Monitoring.md`
 - Run: `scripts/run_live_ml.py`
+
+## 5. Common Errors
+
+### `TypeError: Argument 'position_id' has incorrect type`
+- **Context:** Occurs during `on_bar` when checking current positions using `cache.position()`.
+- **Cause:** Using `cache.position(instrument_id)` which expects a specific position UUID.
+- **Solution:** Use `cache.positions(instrument_id=...)` to list all positions for that instrument, then select the last one.
+    ```python
+    positions = self.cache.positions(instrument_id=self.instrument_id)
+    position = positions[-1] if positions else None
+    ```
