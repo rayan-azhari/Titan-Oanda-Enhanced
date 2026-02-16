@@ -11,10 +11,18 @@ from typing import Optional
 import oandapyV20
 import oandapyV20.endpoints.orders as orders
 import oandapyV20.endpoints.transactions as transactions
+from nautilus_trader.common.providers import InstrumentProvider
 from nautilus_trader.live.execution_client import LiveExecutionClient
-from nautilus_trader.model.enums import LiquiditySide, OrderSide
+from nautilus_trader.model.enums import AccountType, LiquiditySide, OmsType, OrderSide
 from nautilus_trader.model.events import OrderCanceled, OrderFilled
-from nautilus_trader.model.identifiers import AccountId, ClientOrderId, TradeId, VenueOrderId
+from nautilus_trader.model.identifiers import (
+    AccountId,
+    ClientId,
+    ClientOrderId,
+    TradeId,
+    Venue,
+    VenueOrderId,
+)
 from nautilus_trader.model.objects import Currency, Money, Price, Quantity
 from nautilus_trader.model.orders import LimitOrder, Order
 
@@ -28,12 +36,30 @@ class OandaExecutionClient(LiveExecutionClient):
     def __init__(
         self,
         loop: asyncio.AbstractEventLoop,
+        client_id: ClientId,
+        venue: Venue,
+        oms_type: OmsType,
+        account_type: AccountType,
+        base_currency: Currency | None,
+        instrument_provider: InstrumentProvider,
         config: OandaExecutionClientConfig,
         msgbus,
         cache,
         clock,
     ):
-        super().__init__(loop, config, msgbus, cache, clock)
+        super().__init__(
+            loop=loop,
+            client_id=client_id,
+            venue=venue,
+            oms_type=oms_type,
+            account_type=account_type,
+            base_currency=base_currency,
+            instrument_provider=instrument_provider,
+            msgbus=msgbus,
+            cache=cache,
+            clock=clock,
+            config=config,
+        )
         self._config = config
         self._api = oandapyV20.API(access_token=config.access_token, environment=config.environment)
         self._account_id = config.account_id

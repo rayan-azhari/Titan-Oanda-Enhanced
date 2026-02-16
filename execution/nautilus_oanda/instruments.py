@@ -9,16 +9,18 @@ from typing import List
 
 import oandapyV20
 import oandapyV20.endpoints.accounts as accounts
+from nautilus_trader.common.providers import InstrumentProvider
 from nautilus_trader.model.identifiers import InstrumentId, Symbol, Venue
 from nautilus_trader.model.instruments.currency_pair import CurrencyPair
 
 from .config import OandaInstrumentProviderConfig
 
 
-class OandaInstrumentProvider:
+class OandaInstrumentProvider(InstrumentProvider):
     """Provides instruments from OANDA."""
 
     def __init__(self, config: OandaInstrumentProviderConfig):
+        super().__init__(config)
         self._config = config
         self._client = oandapyV20.API(
             access_token=config.access_token, environment=config.environment

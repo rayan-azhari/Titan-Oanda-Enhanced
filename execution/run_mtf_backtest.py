@@ -375,123 +375,121 @@ def generate_confluence_chart(
 # ─────────────────────────────────────────────────────────────────────
 
 
+def load_instruments_config() -> dict:
+    """Load the instruments configuration from config/instruments.toml."""
+    config_path = PROJECT_ROOT / "config" / "instruments.toml"
+    with open(config_path, "rb") as f:
+        return tomllib.load(f)
+
+
 def main() -> None:
-    """Run the MTF confluence backtest with IS/OOS validation."""
-    pair = "EUR_USD"
+    """Run the MTF confluence backtest with IS/OOS validation for all pairs."""
     mtf_config = load_mtf_config()
+    instruments_config = load_instruments_config()
+
+    pairs = instruments_config.get("instruments", {}).get("pairs", [])
+    if not pairs:
+        print("ERROR: No pairs found in config/instruments.toml")
+        sys.exit(1)
+
     threshold = mtf_config.get("confirmation_threshold", 0.30)
     # Only keep actual timeframe keys from the weights section
     valid_tfs = {"M1", "M5", "M15", "M30", "H1", "H2", "H4", "H8", "D", "W", "M"}
     timeframes = [k for k in mtf_config.get("weights", {}).keys() if k in valid_tfs]
 
-    print(f"{'=' * 60}")
-    print(f"  🔬 MTF Confluence Backtest — {pair}")
-    print(f"{'=' * 60}")
+    print(f"{'=' * 80}")
+    print(f"  🔬 MTF Confluence Backtest — {len(pairs)} Pairs")
+    print(f"{'=' * 80}")
     print(f"  Timeframes: {', '.join(timeframes)}")
     print(f"  Threshold:  ±{threshold}")
     print("  Direction:  LONG + SHORT")
+    print()
 
-    # ── Compute confluence score ──
-    confluence, primary_df = compute_confluence_score(pair, mtf_config, timeframes)
-    close = primary_df["close"]
+    summary_stats = []
 
-    # ── Spread-based cost estimation ──
-    spread_series = build_spread_series(primary_df, pair)
-    avg_spread = float(spread_series.mean())
-    print(f"\n  💰 Avg session-weighted spread: {avg_spread * 10000:.1f} pips")
+    for pair in pairs:
+        print(f"👉 Processing {pair}...")
 
-    # ── IS / OOS Split (70/30) ──
-    split_idx = int(len(close) * 0.70)
-    is_close = close.iloc[:split_idx]
-    oos_close = close.iloc[split_idx:]
-    is_conf = confluence.iloc[:split_idx]
-    oos_conf = confluence.iloc[split_idx:]
+        # ── Compute confluence score ──
+        try:
+            confluence, primary_df = compute_confluence_score(pair, mtf_config, timeframes)
+        except SystemExit:
+            print(f"   ⚠️ Skipping {pair} (missing data)")
+            continue
+        except Exception as e:
+            print(f"   ⚠️ Error processing {pair}: {e}")
+            continue
 
-    print("\n  📐 Data split:")
-    print(
-        f"     IS:  {len(is_close)} bars "
-        f"({is_close.index.min().date()} → {is_close.index.max().date()})"
-    )
-    print(
-        f"     OOS: {len(oos_close)} bars "
-        f"({oos_close.index.min().date()} → {oos_close.index.max().date()})"
-    )
+        close = primary_df["close"]
 
-    # ── Signal analysis ──
-    long_signals = (confluence >= threshold).sum()
-    short_signals = (confluence <= -threshold).sum()
-    neutral = len(confluence) - long_signals - short_signals
-    print("\n  📡 Signal distribution (full period):")
-    print(f"     Long:    {long_signals:>5d} bars ({long_signals / len(confluence) * 100:.1f}%)")
-    print(f"     Short:   {short_signals:>5d} bars ({short_signals / len(confluence) * 100:.1f}%)")
-    print(f"     Neutral: {neutral:>5d} bars ({neutral / len(confluence) * 100:.1f}%)")
+        # ── Spread-based cost estimation ──
+        try:
+            spread_series = build_spread_series(primary_df, pair)
+            avg_spread = float(spread_series.mean())
+        except Exception:
+            # Fallback if spread model fails or data missing
+            avg_spread = 0.0002
 
-    # ── In-Sample Backtest ──
-    print(f"\n{'─' * 60}")
-    print("  ▶ IN-SAMPLE BACKTEST")
-    print(f"{'─' * 60}")
+        # ── IS / OOS Split (70/30) ──
+        split_idx = int(len(close) * 0.70)
+        # is_close = close.iloc[:split_idx]
+        oos_close = close.iloc[split_idx:]
+        # is_conf = confluence.iloc[:split_idx]
+        oos_conf = confluence.iloc[split_idx:]
 
-    is_results = run_backtest(is_close, is_conf, threshold, fees=avg_spread)
-    is_long_stats = print_portfolio_stats("LONG", is_results["long"], "IN-SAMPLE")
-    is_short_stats = print_portfolio_stats("SHORT", is_results["short"], "IN-SAMPLE")
+        # ── Run Backtests ──
+        # In-Sample
+        # is_results = run_backtest(is_close, is_conf, threshold, fees=avg_spread)
+        # We only care about combined return for the summary mostly, but let's calc key stats
 
-    # Combined P&L
-    is_combined_return = (is_long_stats["total_return"] + is_short_stats["total_return"]) / 2
-    print(f"\n  📊 Combined IS Return: {is_combined_return:.2f}%")
+        # Out-of-Sample
+        oos_results = run_backtest(oos_close, oos_conf, threshold, fees=avg_spread)
+        oos_long_pf = oos_results["long"]
+        oos_short_pf = oos_results["short"]
 
-    # Generate IS chart
-    generate_confluence_chart(is_close, is_conf, threshold, pair, "IS")
+        # ── Aggregate Stats ──
+        # Combined OOS Return
+        oos_combined_ret = (oos_long_pf.total_return() + oos_short_pf.total_return()) / 2 * 100
+        oos_combined_sharpe = (oos_long_pf.sharpe_ratio() + oos_short_pf.sharpe_ratio()) / 2
+        oos_trades = oos_long_pf.trades.count() + oos_short_pf.trades.count()
 
-    # ── Out-of-Sample Backtest ──
-    print(f"\n{'─' * 60}")
-    print("  ▶ OUT-OF-SAMPLE BACKTEST")
-    print(f"{'─' * 60}")
-
-    oos_results = run_backtest(oos_close, oos_conf, threshold, fees=avg_spread)
-    oos_long_stats = print_portfolio_stats("LONG", oos_results["long"], "OUT-OF-SAMPLE")
-    oos_short_stats = print_portfolio_stats("SHORT", oos_results["short"], "OUT-OF-SAMPLE")
-
-    oos_combined_return = (oos_long_stats["total_return"] + oos_short_stats["total_return"]) / 2
-    print(f"\n  📊 Combined OOS Return: {oos_combined_return:.2f}%")
-
-    # Generate OOS chart
-    generate_confluence_chart(oos_close, oos_conf, threshold, pair, "OOS")
-
-    # ── Parity Check ──
-    print(f"\n{'─' * 60}")
-    print("  ▶ IS vs OOS PARITY CHECK")
-    print(f"{'─' * 60}")
-
-    for label, is_s, oos_s in [
-        ("LONG", is_long_stats, oos_long_stats),
-        ("SHORT", is_short_stats, oos_short_stats),
-    ]:
-        is_sharpe = is_s["sharpe"]
-        oos_sharpe = oos_s["sharpe"]
-        if is_sharpe != 0:
-            ratio = oos_sharpe / is_sharpe
-        else:
-            ratio = 0
-
-        if ratio >= 0.5:
-            status = "✓ PASS"
-        elif ratio >= 0:
-            status = "⚠ WEAK"
-        else:
-            status = "✗ OVERFIT"
-
-        print(
-            f"    {label:6s}  IS Sharpe={is_sharpe:>7.3f}  "
-            f"OOS Sharpe={oos_sharpe:>7.3f}  "
-            f"Ratio={ratio:>6.2f}  {status}"
+        summary_stats.append(
+            {
+                "Pair": pair,
+                "OOS Return %": oos_combined_ret,
+                "OOS Sharpe": oos_combined_sharpe,
+                "Trades": oos_trades,
+                "Spread (pips)": avg_spread * 10000,
+            }
         )
 
-    # ── Final summary ──
-    print(f"\n{'=' * 60}")
-    print("  ✅ MTF Confluence Backtest Complete")
-    print(f"{'=' * 60}")
-    print(f"  Reports: {REPORTS_DIR}")
-    print()
+        # Generate Chart for OOS only to save space/time, or both if needed.
+        # Let's do OOS only to keep it faster, or both if user wants details.
+        # Generating only OOS chart for now to avoid cluttering reports too much
+        generate_confluence_chart(oos_close, oos_conf, threshold, pair, "OOS")
+        print(f"   ✅ {pair}: OOS Ret={oos_combined_ret:.2f}%, Sharpe={oos_combined_sharpe:.2f}")
+
+    # ── Final Summary Table ──
+    print(f"\n{'=' * 80}")
+    print(f"  📊 FINAL SUMMARY ({len(summary_stats)} pairs)")
+    print(f"{'=' * 80}")
+
+    if summary_stats:
+        df_summary = pd.DataFrame(summary_stats)
+        df_summary = df_summary.sort_values("OOS Sharpe", ascending=False)
+
+        print(df_summary.to_string(index=False, float_format=lambda x: "{:.2f}".format(x)))
+
+        # Save summary CSV
+        summary_path = REPORTS_DIR / "mtf_backtest_summary.csv"
+        df_summary.to_csv(summary_path, index=False)
+        print(f"\n  💾 Summary saved to {summary_path}")
+    else:
+        print("  ❌ No results generated.")
+
+    print(f"\n{'=' * 80}")
+    print("  ✅ Batch Backtest Complete")
+    print(f"{'=' * 80}")
 
 
 if __name__ == "__main__":

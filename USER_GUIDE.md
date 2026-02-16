@@ -200,6 +200,13 @@ It calculates a weighted "Confluence Score" based on **SMA Crossovers** and **RS
 **Signal Logic:**
 - **Long:** Confluence Score ≥ +0.10
 - **Short:** Confluence Score ≤ -0.10
+- **Exit:** When score returns to Neutral (between -0.10 and +0.10) or reverses.
+- **Stop Loss:** **NONE** (Signal Only). We rely on the trend reversal.
+
+**Risk Management:**
+- **Size:** 1% Risk Equivalent (Volatility Adjusted).
+- **Rule:** We size the trade so a 2 ATR move = 1% Equity loss.
+- **Why:** This normalizes exposure. High volatility = smaller size. Low volatility = larger size (capped at 5x).
 
 **Optimization Process:**
 We found these exact settings through a rigorous 3-stage sweep:
@@ -240,6 +247,23 @@ uv run python execution/run_ml_strategy.py
 **Sanity Check:**
 - Look in `models/`. You should see `.joblib` files (e.g., `xgb_EUR_USD.joblib`).
 - Creating these files means your AI is ready to make decisions.
+
+---
+
+## 🦅 Phase 5.5: MTF Confluence Live (Recommended)
+
+For the **Multi-Timeframe Confluence Strategy** (our robust, signal-based logic), use the dedicated runner. This is simpler and more reliable than the ML pipeline for this specific strategy.
+
+**The Command:**
+```bash
+uv run python execution/run_live_mtf.py
+```
+
+**What it does:**
+1.  **Connects:** Authenticates with OANDA (Practice).
+2.  **Loads Instruments:** Fetches available pairs.
+3.  **Warms Up:** Loads local Parquet data (`data/raw/`) to calculate moving averages immediately.
+4.  **Trades:** Executes Long/Short positions based on the H1/H4/D/W confluence score.
 
 ---
 

@@ -13,7 +13,6 @@ import os
 import sys
 import time
 import tomllib
-from decimal import Decimal
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -34,7 +33,7 @@ ACCOUNT_ID = os.getenv("OANDA_ACCOUNT_ID")
 ACCESS_TOKEN = os.getenv("OANDA_ACCESS_TOKEN")
 ENVIRONMENT = os.getenv("OANDA_ENVIRONMENT", "practice")
 
-RAW_DATA_DIR = PROJECT_ROOT / ".tmp" / "data" / "raw"
+RAW_DATA_DIR = PROJECT_ROOT / "data"
 RAW_DATA_DIR.mkdir(parents=True, exist_ok=True)
 
 
@@ -111,10 +110,10 @@ def candles_to_dataframe(candles: list[dict]) -> pd.DataFrame:
         rows.append(
             {
                 "timestamp": pd.Timestamp(c["time"]),
-                "open": Decimal(bid["o"]),
-                "high": Decimal(bid["h"]),
-                "low": Decimal(bid["l"]),
-                "close": Decimal(bid["c"]),
+                "open": float(bid["o"]),
+                "high": float(bid["h"]),
+                "low": float(bid["l"]),
+                "close": float(bid["c"]),
                 "volume": int(c["volume"]),
             }
         )

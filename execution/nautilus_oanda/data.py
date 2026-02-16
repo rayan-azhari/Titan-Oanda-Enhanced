@@ -25,12 +25,22 @@ class OandaDataClient(LiveDataClient):
     def __init__(
         self,
         loop: asyncio.AbstractEventLoop,
+        client_id,
+        venue,
         config: OandaDataClientConfig,
         msgbus,
         cache,
         clock,
     ):
-        super().__init__(loop, config, msgbus, cache, clock)
+        super().__init__(
+            loop=loop,
+            client_id=client_id,
+            venue=venue,
+            config=config,
+            msgbus=msgbus,
+            cache=cache,
+            clock=clock,
+        )
         self._config = config
         self._api = oandapyV20.API(access_token=config.access_token, environment=config.environment)
         self._account_id = config.account_id

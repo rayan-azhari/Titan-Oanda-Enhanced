@@ -19,6 +19,17 @@ Where each $Signal_{TF} \in [-1, +1]$ is derived from:
 -   **Long:** Confluence $\ge +0.10$
 -   **Short:** Confluence $\le -0.10$
 
+### Exit Logic (Signal Only)
+-   **No Trailing Stops:** Backtests proved that tight stops destroy performance (-90% return). We rely purely on the signal.
+-   **Long Exit:** Confluence drops below +0.10 (Neutral) or flips Short.
+-   **Short Exit:** Confluence rises above -0.10 (Neutral) or flips Long.
+
+### Risk Management
+-   **Size:** Volatility-Adjusted (1% Risk Equivalent).
+-   **Formula:** $\text{Units} = \frac{\text{Equity} \times 0.01}{2 \times \text{ATR}}$
+-   **Logic:** Size the trade *as if* it had a 2 ATR stop, but **do not place the stop**. This keeps exposure constant per unit of volatility without getting whipsawed.
+-   **Cap:** Max 5x Leverage.
+
 ## Optimized Configuration (Stage 3 Results)
 
 Through extensive parameter sweeping (Stages 1-3), the following configuration yielded a **Combined Sharpe of 1.75** on EUR/USD:
@@ -71,3 +82,22 @@ uv run python execution/run_mtf_stage3.py
 
 ## Configuration File
 Settings are stored in `config/mtf.toml`. This file is automatically updated by `run_mtf_stage3.py`.
+
+## Live Execution (Practice Mode)
+
+To deploy this strategy to the **OANDA Practice Environment**:
+
+### 1. Prerequisites
+- `OANDA_ACCOUNT_ID` and `OANDA_ACCESS_TOKEN` set in `.env`.
+- `OANDA_ENVIRONMENT=practice` in `.env`.
+
+### 2. Run Command
+```bash
+uv run python execution/run_live_mtf.py
+```
+
+### 3. Implementation Details
+- **Runner:** `execution/run_live_mtf.py` (Custom runner, distinct from ML runner).
+- **Strategy Class:** `strategies/mtf_strategy.py` (`MTFConfluenceStrategy`).
+- **Bar Types:** Requires explicit OANDA-specific BarType strings (e.g., `EUR/USD.OANDA-1-HOUR-MID-INTERNAL`) to ensure correct subscription.
+- **Warmup:** The strategy automatically loads historical data from `data/raw/` (parquet) to warm up the indicators instantly. No waiting for live bars required.

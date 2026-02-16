@@ -15,7 +15,36 @@ Containerise the Nautilus system and deploy it to a low-latency **Google Compute
 - [ ] Model Sharpe ≥ 1.5 (from `train_ml_model.py`)
 - [ ] `execution/validate_data.py` passed on latest data
 
-## Execution Steps
+## Local Practice Deployment
+
+Before deploying to the cloud, verify the strategy in the local **Practice Environment**.
+
+### 1. Configuration
+Ensure `.env` is set to practice mode:
+```ini
+OANDA_ENVIRONMENT=practice
+```
+
+### 2. Execution
+Run the specific runner for your strategy:
+
+**A. Multi-Timeframe Confluence (Signal-Based)**
+```bash
+uv run python execution/run_live_mtf.py
+```
+
+**B. ML Strategy (XGBoost)**
+```bash
+uv run python execution/run_nautilus_live.py
+```
+
+### 3. Validation
+- Check console for `[INFO] Strategy Started`.
+- Verify subscriptions (e.g., `EUR/USD.OANDA-1-HOUR...`).
+- Wait for "Warmup complete".
+- Monitor via OANDA mobile app or web dashboard.
+
+## Cloud Execution Steps (GCE)
 
 ### 1. Containerisation
 

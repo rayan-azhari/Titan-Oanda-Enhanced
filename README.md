@@ -143,6 +143,9 @@ docker run --env-file .env titan-oanda-algo
 # - Auto-warms up strategy with local Parquet data for instant readiness
 # - Ensures OANDA_ACCOUNT_ID and OANDA_ACCESS_TOKEN are set in .env
 uv run python execution/run_nautilus_live.py
+
+# OR for the Multi-Timeframe Confluence Strategy:
+uv run python execution/run_live_mtf.py
 ```
 
 ## Research Tools
