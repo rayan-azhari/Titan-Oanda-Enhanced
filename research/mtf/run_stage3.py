@@ -383,13 +383,13 @@ def main() -> None:
         "# Optimised via Stage 1-3 sweeps (run_mtf_optimisation.py,",
         "# run_mtf_stage2.py, run_mtf_stage3.py).",
         "",
+        f"confirmation_threshold = {THRESHOLD:.2f}",
+        "",
         "[weights]",
         f"H1 = {WEIGHTS['H1']:.2f}",
         f"H4 = {WEIGHTS['H4']:.2f}",
         f"D  = {WEIGHTS['D']:.2f}",
         f"W  = {WEIGHTS['W']:.2f}",
-        "",
-        f"confirmation_threshold = {THRESHOLD:.2f}",
         "",
     ]
     for tf in ["H1", "H4", "D", "W"]:

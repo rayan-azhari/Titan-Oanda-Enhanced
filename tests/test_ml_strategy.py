@@ -12,58 +12,57 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
 
-# Mock Nautilus & joblib BEFORE importing MLSignalStrategy
-def setup_mocks():
-    if "nautilus_trader" in sys.modules:
-        del sys.modules["nautilus_trader"]
-    if "joblib" in sys.modules:
-        del sys.modules["joblib"]
-
-    sys.modules["nautilus_trader"] = MagicMock()
-    sys.modules["nautilus_trader.config"] = MagicMock()
-    sys.modules["nautilus_trader.model"] = MagicMock()
-    sys.modules["nautilus_trader.model.data"] = MagicMock()
-    sys.modules["nautilus_trader.model.enums"] = MagicMock()
-    sys.modules["nautilus_trader.model.identifiers"] = MagicMock()
-    sys.modules["nautilus_trader.model.objects"] = MagicMock()
-    sys.modules["nautilus_trader.trading"] = MagicMock()
-
-    # Define a real base class for Strategy to avoid Mock inheritance weirdness
-    class MockStrategy:
-        def __init__(self, config):
-            self.config = config
-            self.log = MagicMock()
-            self.cache = MagicMock()
-            self.order_factory = MagicMock()
-
-        def subscribe_bars(self, bar_type):
-            pass
-
-    mock_strat_module = MagicMock()
-    mock_strat_module.Strategy = MockStrategy
-    sys.modules["nautilus_trader.trading.strategy"] = mock_strat_module
-
-    # Mock joblib
-    sys.modules["joblib"] = MagicMock()
-    # Mock load to return a dummy model
-    mock_model = MagicMock()
-    mock_model.predict.return_value = [1]
-    sys.modules["joblib"].load.return_value = mock_model
-
-
-setup_mocks()
-
-# Now import
-from strategies.ml_strategy import MLSignalStrategy
-
+# Mock Nautilus & joblib
+from unittest.mock import patch
 
 class TestMLSignalStrategy(unittest.TestCase):
     def setUp(self):
+        # Patch sys.modules to mock nautilus_trader
+        self.modules_patcher = patch.dict(sys.modules, {
+            "nautilus_trader": MagicMock(),
+            "nautilus_trader.config": MagicMock(),
+            "nautilus_trader.model": MagicMock(),
+            "nautilus_trader.model.data": MagicMock(),
+            "nautilus_trader.model.enums": MagicMock(),
+            "nautilus_trader.model.identifiers": MagicMock(),
+            "nautilus_trader.model.objects": MagicMock(),
+            "nautilus_trader.trading": MagicMock(),
+            "nautilus_trader.trading.strategy": MagicMock(),
+            "joblib": MagicMock(),
+        })
+        self.modules_patcher.start()
+
+        # Setup Mock Strategy Base Class
+        mock_strat_module = sys.modules["nautilus_trader.trading.strategy"]
+        class MockStrategy:
+            def __init__(self, config):
+                self.config = config
+                self.log = MagicMock()
+                self.cache = MagicMock()
+                self.order_factory = MagicMock()
+            def subscribe_bars(self, bar_type):
+                pass
+        mock_strat_module.Strategy = MockStrategy
+
+        # Setup Joblib
+        mock_model = MagicMock()
+        mock_model.predict.return_value = [1]
+        sys.modules["joblib"].load.return_value = mock_model
+
+        # Import Strategy (inside patch context)
+        # We must reload it if it was already imported, or ensure fresh import
+        if "titan.strategies.ml.strategy" in sys.modules:
+            del sys.modules["titan.strategies.ml.strategy"]
+        
+        from titan.strategies.ml.strategy import MLSignalStrategy
+        self.MLSignalStrategy = MLSignalStrategy
+
         # Create dummy parquet file
         self.data_dir = PROJECT_ROOT / "data"
         self.data_dir.mkdir(exist_ok=True)
         self.test_file = self.data_dir / "TEST_USD_H4.parquet"
-
+        
+        # ... rest of setup ...
         dates = pd.date_range(start="2023-01-01", periods=50, freq="4h")
         df = pd.DataFrame(
             {
@@ -91,6 +90,7 @@ class TestMLSignalStrategy(unittest.TestCase):
         self.mock_config.warmup_bars = 50
 
     def tearDown(self):
+        self.modules_patcher.stop()
         if self.test_file.exists():
             self.test_file.unlink()
         if self.dummy_model_path.exists():
@@ -98,7 +98,7 @@ class TestMLSignalStrategy(unittest.TestCase):
 
     def test_warmup_and_signal(self):
         """Test full flow: warmup -> on_bar -> signal -> trade."""
-        strategy = MLSignalStrategy(self.mock_config)
+        strategy = self.MLSignalStrategy(self.mock_config)
 
         # Manually invoke on_start (calls _warmup_history)
         # Note: on_start calls InstrumentId.from_str which returns a Mock.

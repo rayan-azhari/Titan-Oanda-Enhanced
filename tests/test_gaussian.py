@@ -2,7 +2,7 @@
 
 import numpy as np
 
-from execution.indicators.gaussian_filter import (
+from titan.indicators.gaussian_filter import (
     GaussianChannel,
     _gaussian_channel_kernel,
     get_gaussian_alpha,

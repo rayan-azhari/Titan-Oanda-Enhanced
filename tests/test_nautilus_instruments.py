@@ -15,8 +15,8 @@ sys.path.insert(0, str(PROJECT_ROOT))
 
 load_dotenv(PROJECT_ROOT / ".env")
 
-from execution.nautilus_oanda.config import OandaInstrumentProviderConfig
-from execution.nautilus_oanda.instruments import OandaInstrumentProvider
+from titan.adapters.oanda.config import OandaInstrumentProviderConfig
+from titan.adapters.oanda.instruments import OandaInstrumentProvider
 
 # Mark the entire module as requiring live credentials
 pytestmark = pytest.mark.skipif(

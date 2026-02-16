@@ -73,7 +73,8 @@ class MLSignalStrategy(Strategy):
         gran = self.bar_type.specifier.split("-")[-1] if "-" in self.bar_type.specifier else "H4"
 
         # Determine project root relative to this file
-        project_root = Path(__file__).resolve().parent.parent
+        # titan/strategies/ml/strategy.py -> .../Titan-Oanda
+        project_root = Path(__file__).resolve().parents[3]
         parquet_path = project_root / "data" / f"{pair}_{gran}.parquet"
 
         if not parquet_path.exists():

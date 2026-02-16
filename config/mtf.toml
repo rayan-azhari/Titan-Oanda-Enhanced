@@ -4,13 +4,13 @@
 # Optimised via Stage 1-3 sweeps (run_mtf_optimisation.py,
 # run_mtf_stage2.py, run_mtf_stage3.py).
 
+confirmation_threshold = 0.10
+
 [weights]
 H1 = 0.10
 H4 = 0.25
 D  = 0.60
 W  = 0.05
-
-confirmation_threshold = 0.10
 
 [H1]
 fast_ma = 10

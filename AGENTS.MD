@@ -77,3 +77,14 @@ You are building a **Quantitative Trading System**, not a script collection.
 **Prioritise:** Modularity, Type Safety, and Reproducibility.
 
 Read the `directives/`. Write reusable code in `titan/`. Experiment in `research/`. Execute via `scripts/`.
+
+---
+
+## 5. Prevention & Quality Control
+
+To prevent regression (like `ModuleNotFoundError` or broken configs):
+
+1.  **Run Tests Locally:** Before pushing, run `python -m pytest tests/`.
+2.  **Lint Check:** Run `python -m ruff check .` to catch bad imports.
+3.  **No `execution/`:** Ensure NO code imports from `execution`. Use `titan`.
+4.  **Config Validation:** If modifying TOML, verify it parses correctly with a script.

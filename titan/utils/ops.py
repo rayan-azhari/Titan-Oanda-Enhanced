@@ -12,16 +12,15 @@ import os
 import sys
 from pathlib import Path
 
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(PROJECT_ROOT))
-
-from dotenv import load_dotenv
-
-load_dotenv(PROJECT_ROOT / ".env")
-
 import oandapyV20
 import oandapyV20.endpoints.orders as orders_ep
 import oandapyV20.endpoints.positions as positions_ep
+from dotenv import load_dotenv
+
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(PROJECT_ROOT))
+
+load_dotenv(PROJECT_ROOT / ".env")
 
 ACCOUNT_ID = os.getenv("OANDA_ACCOUNT_ID")
 ACCESS_TOKEN = os.getenv("OANDA_ACCESS_TOKEN")

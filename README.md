@@ -1,4 +1,4 @@
-# Titan-Oanda-Algo
+# Titan-Oanda-Algo-Enhanced
 
 > A quantitative **swing trading** system for OANDA — ML-driven strategy discovery, VectorBT optimisation, NautilusTrader execution, and GCE deployment.
 

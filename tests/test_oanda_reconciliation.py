@@ -12,7 +12,7 @@ from nautilus_trader.model.identifiers import ClientId, Venue
 from nautilus_trader.model.objects import Currency
 from nautilus_trader.model.enums import AccountType, OmsType, PositionSide
 
-from execution.nautilus_oanda.config import OandaExecutionClientConfig
+from titan.adapters.oanda.config import OandaExecutionClientConfig
 
 class MockBase:
     def __init__(self, *args, **kwargs):
@@ -26,9 +26,9 @@ def _get_patched_client_class():
     """
     with patch("nautilus_trader.live.execution_client.LiveExecutionClient", MockBase):
         # Force reload to apply patch to base class resolution
-        if 'execution.nautilus_oanda.execution' in sys.modules:
-             del sys.modules['execution.nautilus_oanda.execution']
-        from execution.nautilus_oanda.execution import OandaExecutionClient
+        if 'titan.adapters.oanda.execution' in sys.modules:
+             del sys.modules['titan.adapters.oanda.execution']
+        from titan.adapters.oanda.execution import OandaExecutionClient
         return OandaExecutionClient
 
 def _make_client():
