@@ -8,10 +8,11 @@ import os
 import sys
 import time
 from pathlib import Path
-import pandas as pd
-from dotenv import load_dotenv
+
 import oandapyV20
 import oandapyV20.endpoints.instruments as instruments_ep
+import pandas as pd
+from dotenv import load_dotenv
 
 # Add project root to path
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -61,8 +62,8 @@ def fetch_candles(client, instrument, granularity, from_time, count=5000):
                 print(f"Error fetching data: {e}")
                 raise
         except Exception as e:
-             print(f"Unexpected error: {e}")
-             raise
+            print(f"Unexpected error: {e}")
+            raise
     return []
 
 
@@ -72,66 +73,74 @@ def candles_to_dataframe(candles):
     for c in candles:
         if not c.get("complete", False):
             continue
-        
+
         bid = c.get("bid")
         if not bid:
             continue
 
-        rows.append({
-            "timestamp": pd.Timestamp(c["time"]),
-            "open": float(bid["o"]),
-            "high": float(bid["h"]),
-            "low": float(bid["l"]),
-            "close": float(bid["c"]),
-            "volume": int(c["volume"]),
-        })
+        rows.append(
+            {
+                "timestamp": pd.Timestamp(c["time"]),
+                "open": float(bid["o"]),
+                "high": float(bid["h"]),
+                "low": float(bid["l"]),
+                "close": float(bid["c"]),
+                "volume": int(c["volume"]),
+            }
+        )
     return pd.DataFrame(rows)
 
 
 def main():
     print(f"🚀 Starting full download for {INSTRUMENT} {GRANULARITY} from {START_DATE}")
-    
+
     if not ACCESS_TOKEN:
         print("❌ OANDA_ACCESS_TOKEN not set in .env")
         return
 
     client = oandapyV20.API(access_token=ACCESS_TOKEN, environment=ENVIRONMENT)
-    
+
     all_dfs = []
     next_time = START_DATE
-    
+
     while True:
         print(f"  Fetching from {next_time}...")
         try:
-            candles = fetch_candles(client, INSTRUMENT, GRANULARITY, from_time=next_time, count=5000)
+            candles = fetch_candles(
+                client,
+                INSTRUMENT,
+                GRANULARITY,
+                from_time=next_time,
+                count=5000,
+            )
         except Exception as e:
             print(f"  ❌ Critical error: {e}")
             break
-            
+
         if not candles:
             print("  No more candles received.")
             break
-            
+
         df = candles_to_dataframe(candles)
         if df.empty:
             print("  Returned candles were empty or incomplete.")
             break
-            
+
         all_dfs.append(df)
         count = len(df)
-        
+
         last_time_ts = df.iloc[-1]["timestamp"]
         print(f"    Got {count} rows. Last: {last_time_ts}")
-        
+
         # OANDA returns RFC3339 strings, but we parsed to Timestamp.
         # We need to convert back to ISO format for the next request.
         next_time = last_time_ts.isoformat()
-        
+
         # Check if we are close to now
         if last_time_ts.tz_convert("UTC") >= pd.Timestamp.now(tz="UTC") - pd.Timedelta(hours=1):
-             print("  Reached present time.")
-             break
-        
+            print("  Reached present time.")
+            break
+
         time.sleep(0.1)
 
     if not all_dfs:
@@ -141,10 +150,11 @@ def main():
     print("Merging data...")
     final_df = pd.concat(all_dfs)
     final_df = final_df.drop_duplicates(subset="timestamp").sort_values("timestamp")
-    
+
     print(f"💾 Saving {len(final_df)} rows to {OUTPUT_FILE}...")
     final_df.to_parquet(OUTPUT_FILE, index=False)
     print("✅ Done.")
+
 
 if __name__ == "__main__":
     main()
