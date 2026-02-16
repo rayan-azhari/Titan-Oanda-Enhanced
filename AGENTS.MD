@@ -2,94 +2,78 @@
 
 This file is the primary system prompt for the **Titan-Oanda-Algo** workspace. It governs the behaviour of all agents (Architect, Engineer, Researcher).
 
-You operate within a **3-layer architecture** designed to separate *Probabilistic Intent* (AI) from *Deterministic Execution* (Code). In financial engineering, "mostly right" is not enough; code must be exact.
+You operate within a **Modular Architecture** designed to separate *Core Logic* from *Research* and *Execution*.
 
 ---
 
-## The 3-Layer Architecture
+## The Architecture
 
-### Layer 1: Directive (The Strategy)
+### Layer 1: Core Logic (The Library)
 
-- **Located in:** `directives/`
-- These are the specific Standard Operating Procedures (SOPs) for this project.
-- **Your Role:** You do not invent workflows. You read the relevant Directive and execute it step-by-step.
+- **Located in:** `titan/`
+- **Purpose:** Reusable, tested, production-grade code.
+- **Components:** Adapters, data fetching, indicators, strategies, and models.
+- **Rule:** No scripts here. Only classes and functions.
 
-### Layer 2: Orchestration (The Decision Brain)
+### Layer 2: Research (The Lab)
 
-- This is your active context.
-- **Your job is Intelligent Routing:** Read a directive → Choose the right tool → Handle errors → Self-correct.
+- **Located in:** `research/`
+- **Purpose:** Experimental code, notebooks, and optimization loops.
+- **Output:** New features or configuration parameters (to be moved to `config/` or `titan/`).
 
-> [!IMPORTANT]
-> **Rule:** Never execute complex logic in the chat window. Always delegate to a script in `execution/`.
+### Layer 3: Execution (The Interface)
 
-### Layer 3: Execution (The Engine)
-
-- **Located in:** `execution/`
-- Deterministic Python scripts that handle API calls, data processing, and ML training.
-
-> [!WARNING]
-> **Constraint:** All scripts must use `uv` for dependencies and `decimal.Decimal` for prices.
->
-> **Constraint:** Do not reinvent the wheel. Wrap existing libraries (like `oandapyV20`) rather than writing raw HTTP clients.
+- **Located in:** `scripts/`
+- **Purpose:** Entry points for operators (CLI tools).
+- **Examples:** `download_data.py`, `run_live_mtf.py`, `check_env.py`.
 
 ---
 
 ## Operating Principles
 
-### 1. The "Hybrid" Pattern
+### 1. The "Titan" Standard
 
-Before writing a new adapter or client, check if an official library exists.
-
-- ❌ **Bad:** Writing a raw `aiohttp` wrapper for OANDA.
-- ✅ **Good:** Wrapping `oandapyV20` to fit the Nautilus interface.
-- **Why:** We want to maintain business logic, not boilerplate connectivity.
+- **Strict Typing:** All `titan/` code must be fully type-hinted.
+- **Absolute Imports:** Use `from titan.models.spread import ...`, never relative imports.
+- **Configuration:** Use `titan.config` to load TOML files.
 
 ### 2. Scientific Rigour (The ML Mandate)
 
-When training models, you must act as a Data Scientist.
+When training models in `research/ml/`:
 
 - **Reproducibility:** Always set `random_state=42`.
 - **Sanity Checks:** If a strategy looks too good to be true, it is likely data leakage. Check your lagging logic.
 
-### 3. Self-Annealing (Error Handling)
-
-If a script fails:
-
-1. Read the stack trace.
-2. Fix the script in `execution/`.
-3. Run it again.
-
-> [!TIP]
-> Do not ask the user for permission to fix syntax errors. Just fix them.
-
----
-
-## File Organisation & Artifacts
-
-### Directory Structure
+### 3. File Organisation
 
 | Directory | Purpose |
 |---|---|
 | `directives/` | The instruction sets (SOPs) |
-| `execution/` | The Python tools (The muscle) |
-| `config/` | TOML files for strategy parameters (The brains) |
-| `models/` | **Deliverable:** Trained ML models (`.joblib`) |
-| `.tmp/` | **Intermediates:** Raw Parquet data, backtest logs *(can be deleted/regenerated)* |
-| `.antigravity/` | Global rules and agent personas |
+| `titan/` | **Core Package:** The brain (strategies, models, data) |
+| `research/` | **Research:** VectorBT loops, ML experiments |
+| `scripts/` | **Scripts:** CLI entry points (download, trade, test) |
+| `config/` | **Config:** TOML parameters |
+| `data/` | **Data:** Historical Parquet files |
+| `models/` | **Artifacts:** Trained ML models (`.joblib`) |
+| `.tmp/` | **Temp:** Logs and transient reports |
 
-### Deliverables vs. Intermediates
+### 4. Self-Correction
 
-| Type | Example |
-|---|---|
-| **Intermediate** | The raw data downloaded from OANDA (`.tmp/data/raw`) |
-| **Deliverable** | The optimised strategy config or the trained ML model that is ready for deployment |
+If a script fails:
+1. Read the stack trace.
+2. Fix the code in `titan/` or `scripts/`.
+3. Run it again.
+
+> [!WARNING]
+> **Constraint:** All scripts must use `uv` for dependencies. Do not use bare `pip`.
+> **Constraint:** Use `decimal.Decimal` for all pricing logic.
 
 ---
 
 ## Summary
 
-You are building a **Quantitative Trading System**, not a spreadsheet.
+You are building a **Quantitative Trading System**, not a script collection.
 
 **Prioritise:** Modularity, Type Safety, and Reproducibility.
 
-Read the `directives/`. Run the `execution/` scripts. Build the `models/`.
+Read the `directives/`. Write reusable code in `titan/`. Experiment in `research/`. Execute via `scripts/`.
