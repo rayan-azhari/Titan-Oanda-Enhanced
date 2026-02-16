@@ -42,10 +42,10 @@ We need to install the libraries that do the math.
 # First, install 'uv' (it makes things faster)
 pip install uv
 
-# Now install everything else
-uv sync
+# Install the Titan package in editable mode
+uv pip install -e .
 ```
-*Tip: If `uv` doesn't work, just use `pip install -r pyproject.toml`.*
+*Tip: If `uv` doesn't work, just use `pip install -e .`*
 
 ### Step 3: Connect Your Account
 We need to tell the system your OANDA secret password.
@@ -73,7 +73,7 @@ We cannot trade without knowing what the market did in the past.
 
 **The Command:**
 ```bash
-uv run python titan/data/fetch_eur_usd.py
+uv run python scripts/download_data.py
 ```
 
 **What it does:**

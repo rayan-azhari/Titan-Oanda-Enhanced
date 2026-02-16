@@ -35,7 +35,7 @@ This project follows a **3-layer architecture** that separates *Probabilistic In
 ├── AGENTS.MD                      ← Agent system prompt
 ├── Titan Workspace Rules.md       ← Technical & ML constraints
 ├── directives/                    ← SOPs
-│   ├── Titan Package Architecture.md   ← (New) Core Library Docs
+│   ├── Titan Library Reference.md      ← [API DOCS] Detailed Package Guide
 │   ├── Workspace Structure.md          ← (New) File Layout Docs
 │   ├── Alpha Research Loop (VectorBT).md
 │   ├── ... (and other directives)

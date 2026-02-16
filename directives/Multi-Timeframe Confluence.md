@@ -97,7 +97,7 @@ uv run python scripts/run_live_mtf.py
 ```
 
 ### 3. Implementation Details
-- **Runner:** `scripts/run_live_mtf.py` (Custom runner, distinct from ML runner).
-- **Strategy Class:** `strategies/mtf_strategy.py` (`MTFConfluenceStrategy`).
+- **Runner:** `scripts/run_live_mtf.py`
+- **Strategy Class:** `titan.strategies.mtf.strategy` (`MTFConfluenceStrategy`).
 - **Bar Types:** Requires explicit OANDA-specific BarType strings (e.g., `EUR/USD.OANDA-1-HOUR-MID-INTERNAL`) to ensure correct subscription.
-- **Warmup:** The strategy automatically loads historical data from `data/raw/` (parquet) to warm up the indicators instantly. No waiting for live bars required.
+- **Warmup:** The strategy automatically loads historical data from `data/` (parquet) to warm up the indicators instantly. No waiting for live bars required.

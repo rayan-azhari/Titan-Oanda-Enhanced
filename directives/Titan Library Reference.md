@@ -1,0 +1,128 @@
+# Titan Library Reference
+
+**Package Name:** `titan-oanda-algo`
+**Import Name:** `titan`
+**Version:** 0.1.0
+
+The `titan` package is the core library powering the Titan OANDA Algo system. It contains reusable business logic, quantitative models, and infrastructure adapters, completely decoupled from execution scripts.
+
+---
+
+## 🏗️ Architecture Philosophy
+
+The Titan library follows a **Strict Layered Architecture** to ensure stability and reproducibility.
+
+### 1. The "No Scripts" Rule
+*   `titan/` contains **only** functions, classes, and constants.
+*   It **never** contains code that runs immediately on import (no `if __name__ == "__main__"`).
+*   It **never** modifies `sys.path`.
+
+### 2. Dependency Flow
+Dependencies flow **inwards** towards the core models.
+*   ❌ `titan.models` should NOT import from `titan.strategies` (Circles).
+*   ✅ `titan.strategies` imports from `titan.models` and `titan.indicators`.
+*   ✅ `scripts/` import from everything.
+
+### 3. Configuration Injection
+To keep the library testable:
+*   Functions should accept configuration (dictionaries or objects) as arguments.
+*   They should **avoid** loading files from `../../config` directly where possible.
+
+---
+
+## 📚 Modules Reference
+
+### 1. `titan.adapters`
+Bridges the gap between the NautilusTrader engine and the OANDA API.
+*   **Purpose**: Handles real-time data streaming, order execution, and position reconciliation.
+*   **Key Components**:
+    *   `OandaLiveClient`: A robust wrapper around `oandapyV20` with automatic retries and connection management.
+    *   `reconciliation`: Logic to sync local engine state with remote broker state on startup.
+
+### 2. `titan.data`
+Utilities for fetching, validating, and managing historical data.
+*   **`titan.data.oanda`**: primitives for OANDA API data requests (candles, instruments).
+    *   `fetch_candles(client, instrument, granularity, ...)`: Robust pagination for history.
+*   **`titan.data.validation`**: Data integrity checks.
+    *   `check_gaps(df)`: Detects missing candles.
+    *   `check_outliers(df)`: flags suspicious price spikes.
+
+### 3. `titan.indicators`
+High-performance technical indicators optimized for both Numba (backtesting) and standard Python (live).
+*   **`titan.indicators.common`**: Shared logic for SMA, EMA, RSI, MACD.
+*   **`titan.indicators.chaos`**: Ehlers-based non-linear indicators (Gaussian Channel, Fractal Dimension).
+
+### 4. `titan.models`
+Quantitative models that model market physics and trading costs.
+*   **`titan.models.spread`**: Time-varying spread and slippage estimation.
+    *   `build_spread_series(df, pair)`: Estimates spread based on session (Tokyo/London/NY).
+    *   `estimate_slippage(units, volume)`: Impact model based on square-root law.
+
+### 5. `titan.strategies`
+Production-grade strategy logic, separated from the execution harness.
+*   **`titan.strategies.mtf`**: Multi-Timeframe Confluence logic.
+*   **`titan.strategies.ml`**: Machine Learning signal generation and feature engineering.
+    *   *Note:* Ensure `titan.strategies.ml.features` matches training code exactly to avoid drift.
+
+### 6. `titan.utils`
+Operational utilities for production handling.
+*   **`titan.utils.ops`**: Emergency operations.
+    *   `cancel_all_orders()`: Wipes pending orders.
+    *   `close_all_positions()`: Flattens the account.
+*   **`titan.utils.notification`**: Slack alerting integration.
+
+---
+
+## 📦 Installation
+
+The package is designed to be installed in **editable mode** within your development environment.
+
+```bash
+# From the project root
+pip install -e .
+```
+
+---
+
+## 🚀 Usage Examples
+
+### Fetching Data
+```python
+from titan.data.oanda import fetch_candles, candles_to_dataframe
+import oandapyV20
+
+client = oandapyV20.API(access_token="...")
+candles = fetch_candles(client, "EUR_USD", "H1", count=500)
+df = candles_to_dataframe(candles)
+print(df.head())
+```
+
+### Checking Data Quality
+```python
+from titan.data.validation import check_gaps, check_outliers
+
+# Validate a DataFrame
+gap_count = check_gaps(df, "EUR_USD")
+spike_count = check_outliers(df, "EUR_USD", z_threshold=5.0)
+
+if gap_count == 0 and spike_count == 0:
+    print("Data is clean!")
+```
+
+### Emergency Flatten
+```python
+from titan.utils.ops import close_all_positions, cancel_all_orders
+
+# Emergency Switch
+cancel_all_orders(client, account_id)
+close_all_positions(client, account_id)
+```
+
+---
+
+## 🛠️ Development Guidelines
+
+1.  **Strict Separation**: Never import from `scripts/` or `research/` into `titan/`. The library must be self-contained.
+2.  **No `sys.path`**: Do not use `sys.path.insert` in library code. Rely on proper package installation.
+3.  **Type Hints**: All library functions must be fully type-hinted.
+4.  **Config Injection**: Prefer passing configuration (dicts/objects) to functions rather than loading files from global paths inside the library.

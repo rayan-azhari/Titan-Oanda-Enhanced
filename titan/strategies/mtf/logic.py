@@ -21,8 +21,8 @@ from pathlib import Path
 
 import pandas as pd
 
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(PROJECT_ROOT))
+PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent.parent
+# sys.path.insert(0, str(PROJECT_ROOT))
 
 RAW_DATA_DIR = PROJECT_ROOT / ".tmp" / "data" / "raw"
 FEATURES_DIR = PROJECT_ROOT / ".tmp" / "data" / "features"

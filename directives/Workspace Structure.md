@@ -58,7 +58,12 @@ scripts/
 ├── check_env.py        # Verify environment
 ├── run_backtest_mtf.py # Run MTF backtest
 ├── run_live_mtf.py     # Deploy MTF strategy Live
-└── run_live_ml.py      # Deploy ML strategy Live
+├── run_live_ml.py      # Deploy ML strategy Live
+├── list_instruments.py # List available pairs
+├── spread_analysis.py  # Spread & Cost Analysis
+├── validate_data.py    # Data Integrity Check
+├── kill_switch.py      # Emergency Stop
+└── verify_titan_install.py # Installation Check
 ```
 
 ### 4. `config/` (The Controls)
