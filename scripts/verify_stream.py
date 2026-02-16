@@ -1,4 +1,5 @@
 """Quick standalone test: can we receive ticks from OANDA?"""
+
 import json
 import os
 import sys

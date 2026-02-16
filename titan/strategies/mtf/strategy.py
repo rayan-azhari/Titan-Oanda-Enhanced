@@ -68,8 +68,7 @@ class MTFConfluenceStrategy(Strategy):
 
         # Raw indicator values for the status dashboard
         self.indicator_state = {
-            tf: {"fast_ma": None, "slow_ma": None, "rsi": None}
-            for tf in ["H1", "H4", "D", "W"]
+            tf: {"fast_ma": None, "slow_ma": None, "rsi": None} for tf in ["H1", "H4", "D", "W"]
         }
 
         # Latest ATR (H1) for volatility-adjusted sizing
@@ -300,13 +299,12 @@ class MTFConfluenceStrategy(Strategy):
 
         lines.append(f"{'─' * 55}")
         lines.append(
-            f"  CONFLUENCE: {score:+.3f}  │  Threshold: ±{threshold}"
-            f"  │  Signal: {signal_label}"
+            f"  CONFLUENCE: {score:+.3f}  │  Threshold: ±{threshold}  │  Signal: {signal_label}"
         )
         lines.append(
-            f"  Position: {pos_label}"
-            f"  │  ATR(14): {self.latest_atr:.5f}" if self.latest_atr else
-            f"  Position: {pos_label}  │  ATR: pending"
+            f"  Position: {pos_label}  │  ATR(14): {self.latest_atr:.5f}"
+            if self.latest_atr
+            else f"  Position: {pos_label}  │  ATR: pending"
         )
         lines.append(sep)
 

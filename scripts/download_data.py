@@ -92,7 +92,7 @@ def main() -> None:
 
                 df.to_parquet(output_path, index=False)
                 prior_count = 0
-                if output_path.exists() and 'existing' in locals():
+                if output_path.exists() and "existing" in locals():
                     prior_count = len(existing)
                 new_count = len(df) - prior_count
                 print(

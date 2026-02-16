@@ -471,4 +471,3 @@ class OandaExecutionClient(LiveExecutionClient):
             self._log.error(f"Failed to generate position status reports: {e}")
 
         return reports
-

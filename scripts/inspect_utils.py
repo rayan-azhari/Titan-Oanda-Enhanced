@@ -1,5 +1,6 @@
 try:
     import nautilus_trader.core.datetime as dt
+
     print("Found nautilus_trader.core.datetime")
     print(dir(dt))
 except ImportError:
@@ -7,6 +8,7 @@ except ImportError:
 
 try:
     from nautilus_trader.model.identifiers import TraderId  # noqa: F401
+
     print("Found TraderId")
 except ImportError:
     print("TraderId import failed")

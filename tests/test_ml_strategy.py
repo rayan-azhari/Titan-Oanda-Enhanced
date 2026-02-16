@@ -19,30 +19,36 @@ from unittest.mock import patch
 class TestMLSignalStrategy(unittest.TestCase):
     def setUp(self):
         # Patch sys.modules to mock nautilus_trader
-        self.modules_patcher = patch.dict(sys.modules, {
-            "nautilus_trader": MagicMock(),
-            "nautilus_trader.config": MagicMock(),
-            "nautilus_trader.model": MagicMock(),
-            "nautilus_trader.model.data": MagicMock(),
-            "nautilus_trader.model.enums": MagicMock(),
-            "nautilus_trader.model.identifiers": MagicMock(),
-            "nautilus_trader.model.objects": MagicMock(),
-            "nautilus_trader.trading": MagicMock(),
-            "nautilus_trader.trading.strategy": MagicMock(),
-            "joblib": MagicMock(),
-        })
+        self.modules_patcher = patch.dict(
+            sys.modules,
+            {
+                "nautilus_trader": MagicMock(),
+                "nautilus_trader.config": MagicMock(),
+                "nautilus_trader.model": MagicMock(),
+                "nautilus_trader.model.data": MagicMock(),
+                "nautilus_trader.model.enums": MagicMock(),
+                "nautilus_trader.model.identifiers": MagicMock(),
+                "nautilus_trader.model.objects": MagicMock(),
+                "nautilus_trader.trading": MagicMock(),
+                "nautilus_trader.trading.strategy": MagicMock(),
+                "joblib": MagicMock(),
+            },
+        )
         self.modules_patcher.start()
 
         # Setup Mock Strategy Base Class
         mock_strat_module = sys.modules["nautilus_trader.trading.strategy"]
+
         class MockStrategy:
             def __init__(self, config):
                 self.config = config
                 self.log = MagicMock()
                 self.cache = MagicMock()
                 self.order_factory = MagicMock()
+
             def subscribe_bars(self, bar_type):
                 pass
+
         mock_strat_module.Strategy = MockStrategy
 
         # Setup Joblib
@@ -56,6 +62,7 @@ class TestMLSignalStrategy(unittest.TestCase):
             del sys.modules["titan.strategies.ml.strategy"]
 
         from titan.strategies.ml.strategy import MLSignalStrategy
+
         self.MLSignalStrategy = MLSignalStrategy
 
         # Create dummy parquet file

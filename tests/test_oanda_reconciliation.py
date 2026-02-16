@@ -19,6 +19,7 @@ class MockBase:
     def __init__(self, *args, **kwargs):
         pass
 
+
 def _get_patched_client_class():
     """Import OandaExecutionClient with its base class patched to MockBase.
 
@@ -27,10 +28,12 @@ def _get_patched_client_class():
     """
     with patch("nautilus_trader.live.execution_client.LiveExecutionClient", MockBase):
         # Force reload to apply patch to base class resolution
-        if 'titan.adapters.oanda.execution' in sys.modules:
-             del sys.modules['titan.adapters.oanda.execution']
+        if "titan.adapters.oanda.execution" in sys.modules:
+            del sys.modules["titan.adapters.oanda.execution"]
         from titan.adapters.oanda.execution import OandaExecutionClient
+
         return OandaExecutionClient
+
 
 def _make_client():
     """Create a test OandaExecutionClient with mocked base class."""
@@ -70,7 +73,7 @@ def _make_client():
 
     # API mock (normally set by OandaExecutionClient.__init__)
     # We verify it exists or set it if needed (it should be set by init logic)
-    if not hasattr(client, '_api'):
+    if not hasattr(client, "_api"):
         client._api = MagicMock()
     else:
         # It was set by __init__, but we replace it with a fresh Mock for test control
@@ -91,9 +94,7 @@ def test_long_position():
             }
         ]
     }
-    reports = loop.run_until_complete(
-        client.generate_position_status_reports(command=None)
-    )
+    reports = loop.run_until_complete(client.generate_position_status_reports(command=None))
     assert len(reports) == 1
     assert reports[0].instrument_id.symbol.value == "EUR/USD"
     assert reports[0].position_side == PositionSide.LONG
@@ -113,9 +114,7 @@ def test_short_position():
             }
         ]
     }
-    reports = loop.run_until_complete(
-        client.generate_position_status_reports(command=None)
-    )
+    reports = loop.run_until_complete(client.generate_position_status_reports(command=None))
     assert len(reports) == 1
     assert reports[0].instrument_id.symbol.value == "GBP/USD"
     assert reports[0].position_side == PositionSide.SHORT
@@ -135,9 +134,7 @@ def test_net_position():
             }
         ]
     }
-    reports = loop.run_until_complete(
-        client.generate_position_status_reports(command=None)
-    )
+    reports = loop.run_until_complete(client.generate_position_status_reports(command=None))
     assert len(reports) == 1
     assert reports[0].instrument_id.symbol.value == "USD/JPY"
     assert reports[0].position_side == PositionSide.SHORT
@@ -149,9 +146,7 @@ def test_empty_positions():
     """No open positions should return an empty list."""
     client, loop = _make_client()
     client._api.request.return_value = {"positions": []}
-    reports = loop.run_until_complete(
-        client.generate_position_status_reports(command=None)
-    )
+    reports = loop.run_until_complete(client.generate_position_status_reports(command=None))
     assert len(reports) == 0
     loop.close()
 
@@ -168,9 +163,7 @@ def test_flat_position_skipped():
             }
         ]
     }
-    reports = loop.run_until_complete(
-        client.generate_position_status_reports(command=None)
-    )
+    reports = loop.run_until_complete(client.generate_position_status_reports(command=None))
     assert len(reports) == 0
     loop.close()
 
@@ -179,8 +172,6 @@ def test_api_error_returns_empty():
     """API errors should be caught gracefully, returning empty list."""
     client, loop = _make_client()
     client._api.request.side_effect = Exception("Connection failed")
-    reports = loop.run_until_complete(
-        client.generate_position_status_reports(command=None)
-    )
+    reports = loop.run_until_complete(client.generate_position_status_reports(command=None))
     assert len(reports) == 0
     loop.close()
