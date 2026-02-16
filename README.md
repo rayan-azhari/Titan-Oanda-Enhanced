@@ -35,67 +35,41 @@ This project follows a **3-layer architecture** that separates *Probabilistic In
 ├── AGENTS.MD                      ← Agent system prompt
 ├── Titan Workspace Rules.md       ← Technical & ML constraints
 ├── directives/                    ← SOPs
+│   ├── Titan Package Architecture.md   ← (New) Core Library Docs
+│   ├── Workspace Structure.md          ← (New) File Layout Docs
 │   ├── Alpha Research Loop (VectorBT).md
-│   ├── Machine Learning Strategy Discovery.md
-│   ├── Alpha Research Loop (VectorBT).md
-│   ├── Machine Learning Strategy Discovery.md
-│   ├── Nautilus-Oanda Adapter Construction.md
-│   ├── Nautilus Oanda Adapter.md          ← (Detailed API Docs)
-│   ├── Strategy Validation (Backtesting.py).md
-│   ├── Strategy Validation (Backtesting.py).md
-│   ├── Ensemble Strategy Framework.md
-│   ├── Multi-Timeframe Confluence.md      ← (SMA + RSI Optimized)
-│   ├── Gaussian Channel Strategy Porting.md
-│   ├── Gaussian Channel Confluence Strategy.md ← (Superseded)
-│   ├── Live Deployment and Monitoring.md
-│   └── Workspace Initialisation.md
-├── execution/                     ← Python scripts
-│   ├── setup_env.py               ← Interactive .env setup
-│   ├── verify_connection.py       ← OANDA connection test
-│   ├── download_oanda_data.py     ← Historical H1/H4/D/W OHLC data
-│   ├── validate_data.py           ← Data quality checks
-│   ├── nautilus_oanda/            ← Custom NautilusTrader Adapter
-│   │   ├── config.py              ← Configuration
-│   │   ├── data.py                ← Streaming DataClient
-│   │   ├── execution.py           ← Order ExecutionClient
-│   │   ├── instruments.py         ← InstrumentProvider
-│   │   └── parsing.py             ← OANDA <-> Nautilus mapper
-│   ├── indicators/                ← Custom VectorBT indicators
-│   │   └── gaussian_filter.py     ← Ehlers Gaussian Channel (Numba + VBT)
-│   ├── spread_model.py            ← Time-varying spread estimation
-│   ├── run_vbt_optimisation.py    ← VectorBT parameter sweep + OOS validation
-│   ├── run_gaussian_optimisation.py ← Gaussian Channel parameter sweep
-│   ├── mtf_confluence.py          ← Multi-timeframe signal alignment
-│   ├── run_feature_selection.py   ← VBT → ML Feature Selection Bridge
-│   ├── build_ml_features.py       ← Feature matrix (X) + target (y) + MTF
-│   ├── train_ml_model.py          ← Walk-forward ML training
-│   ├── run_backtesting_validation.py ← Backtesting.py visual audit
-│   ├── run_ensemble.py            ← Multi-strategy signal aggregation
-│   ├── rate_limiter.py            ← Token bucket for OANDA API
-│   ├── parse_oanda_instruments.py ← Legacy instrument parser
-│   ├── run_live.py                ← Legacy Python-only engine (placeholder)
-│   ├── run_nautilus_live.py       ← NautilusTrader Live Engine
-│   ├── fetch_eur_usd.py           ← OANDA API Data Downloader (Raw Parquet)
-│   ├── run_mtf_backtest.py        ← Multi-Timeframe Confluence Strategy (VBT)
-│   ├── run_ml_strategy.py         ← End-to-End ML Pipeline (Feature Eng + Train + OOS)
-│   ├── kill_switch.py             ← Emergency: flatten all positions
-│   ├── build_docker_image.py      ← Docker container for GCE
-│   └── send_notification.py       ← Slack alert integration
-├── config/                        ← TOML configuration
-│   ├── instruments.toml           ← Currency pairs & granularities
-│   ├── features.toml              ← Technical indicator definitions
-│   ├── strategy_config.toml       ← Optimised strategy parameters
-│   ├── training.toml              ← ML model & hyperparameters
-│   ├── risk.toml                  ← Position & risk limits
-│   ├── spread.toml                ← Session-based spread estimates
-│   ├── ensemble.toml              ← Multi-strategy registry & weights
-│   ├── mtf.toml                   ← Multi-timeframe weights & params
-│   └── gaussian_channel_config.toml ← Gaussian Channel optimised params
-├── models/                        ← Deliverable: trained .joblib models
-├── tests/                         ← Unit tests
-├── .tmp/                          ← Intermediate: raw data, reports, logs
-├── pyproject.toml                 ← Dependencies (managed by uv)
-└── .env.example                   ← Credential template
+│   ├── ... (and other directives)
+├── titan/                         ← [CORE] Package (Library Code)
+│   ├── adapters/                  ← NautilusTrader Adapters (OANDA)
+│   ├── config/                    ← Config Loading
+│   ├── data/                      ← Data Fetching & ValidationLogic
+│   ├── indicators/                ← Shared Indicators (Numba/VBT)
+│   ├── models/                    ← Quant Models (Spread, Slippage)
+│   ├── strategies/                ← Production Strategies (MTF, ML)
+│   └── utils/                     ← Logging, Ops, Notifications
+├── research/                      ← [RESEARCH] Experimental Code
+│   ├── alpha_loop/                ← VectorBT Optimization
+│   ├── gaussian/                  ← Gaussian Channel Research
+│   ├── ml/                        ← ML Pipeline & Feature Selection
+│   └── mtf/                       ← MTF Strategy Optimization
+├── scripts/                       ← [ENTRY POINTS] Executable Scripts
+│   ├── download_data.py           ← Unified Data Downloader
+│   ├── check_env.py               ← Environment Verifier
+│   ├── run_backtest_mtf.py        ← MTF Switch Backtest
+│   ├── run_live_mtf.py            ← Live MTF Strategy
+│   ├── run_live_ml.py             ← Live ML Strategy
+│   ├── build_docker.py            ← Docker Builder
+│   └── ...
+├── config/                        ← [CONFIG] TOML Configuration
+│   ├── instruments.toml           ← Currency pairs
+│   ├── risk.toml                  ← Risk limits
+│   └── ...
+├── data/                          ← [DATA] Historical Parquet Files
+├── models/                        ← [MODELS] Trained .joblib models
+├── tests/                         ← [TESTS] Unit Tests
+├── .tmp/                          ← [TEMP] Logs, Reports, Intermediate Data
+├── pyproject.toml                 ← Dependencies (uv)
+└── .env.example                   ← Credential Template
 ```
 
 ## Quick Start
@@ -118,11 +92,11 @@ uv run python scripts/verify_connection.py
 
 ### 4. Alpha Research Loop
 ```bash
-uv run python titan/data/fetch_eur_usd.py              # Download raw OHLCV
+uv run python scripts/download_data.py                 # Download raw OHLCV
 uv run python research/alpha_loop/run_vbt_optimisation.py        # Run VBT parameter sweep
-uv run python research/gaussian/run_optimisation.py   # Gaussian Channel sweep
+uv run python research/gaussian/run_optimisation.py    # Gaussian Channel sweep
 uv run python research/alpha_loop/run_feature_selection.py       # Run Feature Selection Bridge
-uv run python scripts/run_backtest_mtf.py            # Test MTF Confluence Strategy
+uv run python scripts/run_backtest_mtf.py              # Test MTF Confluence Strategy
 ```
 
 ### 5. ML Strategy Discovery
@@ -231,7 +205,7 @@ If all pass locally with zero errors, CI will also pass.
 - [ ] Configure Slack Alerts for live trading monitoring
 - [ ] VectorBT Pro upgrade for production-scale mining
 - [ ] **Strategy Tests:** Add integration tests for `mtf_confluence.py` with fixed data inputs
-- [ ] **Refactor:** Move `run_*.py` scripts to `scripts/` directory
+- [x] **Refactor:** Move `run_*.py` scripts to `scripts/` directory
 - [ ] **CI/CD:** Add end-to-end "dry run" test for key scripts
 
 ## Rules of Engagement
