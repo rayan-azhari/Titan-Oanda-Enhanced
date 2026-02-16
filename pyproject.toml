@@ -49,6 +49,7 @@ ignore = [
 [tool.ruff.lint.per-file-ignores]
 "tests/*" = ["E402", "D"]           # Tests: allow late imports, skip docstring rules
 "execution/*.py" = ["E402"]         # Scripts need sys.path/dotenv before imports
+"scripts/*" = ["E402", "D"]         # Standalone scripts: allow sys.path, skip docstrings
 "strategies/*" = ["D"]              # Strategy files: skip docstring rules
 
 [tool.ruff.lint.pydocstyle]

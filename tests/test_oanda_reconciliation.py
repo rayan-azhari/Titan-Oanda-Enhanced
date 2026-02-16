@@ -1,30 +1,38 @@
-"""test_oanda_reconciliation.py — Tests for OANDA position reconciliation.
-
-Validates that generate_position_status_reports correctly fetches and parses
-open positions from the OANDA V20 API into Nautilus PositionStatusReport objects.
-"""
+"""test_oanda_reconciliation.py — Tests for OANDA position reconciliation."""
 
 import asyncio
 import sys
 from pathlib import Path
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
-# Add project root to path so we can import 'execution' package
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from nautilus_trader.common.providers import InstrumentProvider
-from nautilus_trader.model.enums import AccountType, OmsType, PositionSide
 from nautilus_trader.model.identifiers import ClientId, Venue
 from nautilus_trader.model.objects import Currency
-from nautilus_trader.test_kit.stubs.component import TestComponentStubs
+from nautilus_trader.model.enums import AccountType, OmsType, PositionSide
 
 from execution.nautilus_oanda.config import OandaExecutionClientConfig
-from execution.nautilus_oanda.execution import OandaExecutionClient
 
+class MockBase:
+    def __init__(self, *args, **kwargs):
+        pass
+
+def _get_patched_client_class():
+    """Import OandaExecutionClient with its base class patched to MockBase.
+    
+    This bypasses all Cython/Nautilus restrictions (readonly attrs, type checks)
+    and allows pure logic testing of the python subclass.
+    """
+    with patch("nautilus_trader.live.execution_client.LiveExecutionClient", MockBase):
+        # Force reload to apply patch to base class resolution
+        if 'execution.nautilus_oanda.execution' in sys.modules:
+             del sys.modules['execution.nautilus_oanda.execution']
+        from execution.nautilus_oanda.execution import OandaExecutionClient
+        return OandaExecutionClient
 
 def _make_client():
-    """Create a test OandaExecutionClient with mocked OANDA API."""
+    """Create a test OandaExecutionClient with mocked base class."""
     loop = asyncio.new_event_loop()
 
     config = OandaExecutionClientConfig(
@@ -32,30 +40,40 @@ def _make_client():
         access_token="fake-token",
         environment="practice",
     )
+    
+    ClientClass = _get_patched_client_class()
 
-    clock = TestComponentStubs.clock()
-    msgbus = TestComponentStubs.msgbus()
-    cache = TestComponentStubs.cache()
-
-    client = OandaExecutionClient(
+    # Instantiate with arbitrary arguments (type checks are mocked out)
+    client = ClientClass(
         loop=loop,
         client_id=ClientId("TEST_CLIENT"),
         venue=Venue("OANDA"),
         oms_type=OmsType.HEDGING,
         account_type=AccountType.MARGIN,
         base_currency=Currency.from_str("USD"),
-        instrument_provider=MagicMock(spec=InstrumentProvider),
+        instrument_provider=MagicMock(),
         config=config,
-        msgbus=msgbus,
-        cache=cache,
-        clock=clock,
+        msgbus=MagicMock(),
+        cache=MagicMock(),
+        clock=MagicMock(),
     )
 
-    # Mock the internal OANDA API client so no real HTTP calls are made.
-    # run_in_executor uses the real thread pool, but the lambda it executes
-    # calls _api.request() which is now a MagicMock — so it just returns
-    # the configured return_value instantly.
-    client._api = MagicMock()
+    # Configure the python attributes needed by logic
+    # client._clock is now a writable attribute on the Mock subclass
+    client._loop = loop
+    client._clock = MagicMock()
+    client._clock.timestamp_ns.return_value = 1625097600000000000
+    
+    # Logic uses self._log to define errors
+    client._log = MagicMock()
+    
+    # API mock (normally set by OandaExecutionClient.__init__)
+    # We verify it exists or set it if needed (it should be set by init logic)
+    if not hasattr(client, '_api'):
+        client._api = MagicMock()
+    else:
+        # It was set by __init__, but we replace it with a fresh Mock for test control
+        client._api = MagicMock()
 
     return client, loop
 
