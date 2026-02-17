@@ -1,8 +1,8 @@
-"""run_live_mtf.py
------------------
+"""run_live_mtf_5m.py
+--------------------
 
-Live trading runner for the Multi-Timeframe Confluence Strategy.
-Connects to OANDA (Practice/Live), loads instruments, and launches the strategy.
+Live trading runner for the Multi-Timeframe Confluence Strategy (5m).
+Connects to OANDA (Practice/Live), loads instruments, and launches the optimized 5m strategy.
 """
 
 import logging
@@ -50,7 +50,7 @@ LOGS_DIR.mkdir(parents=True, exist_ok=True)
 def _setup_logging() -> logging.Logger:
     """Configure file + console logging for Root Logger."""
     date_str = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
-    log_file = LOGS_DIR / f"mtf_live_{date_str}.log"
+    log_file = LOGS_DIR / f"mtf_5m_live_{date_str}.log"
 
     # Configure Root Logger to capture EVERYTHING (Strategy, Nautilus, Titan)
     root_logger = logging.getLogger()
@@ -65,12 +65,13 @@ def _setup_logging() -> logging.Logger:
     ch = logging.StreamHandler()
     ch.setFormatter(fmt)
     root_logger.addHandler(ch)
-
+    
+    # Return specific logger for the script's own messages
     return logging.getLogger("titan.nautilus")
 
 
 def main():
-    """Run the MTF Strategy live."""
+    """Run the MTF Strategy-5m live."""
     logger = _setup_logging()
 
     account_id = os.getenv("OANDA_ACCOUNT_ID")
@@ -84,13 +85,17 @@ def main():
         sys.exit(1)
 
     logger.info("=" * 50)
-    logger.info("  MTF CONFLUENCE LIVE — %s", environment.upper())
+    logger.info("  MTF STRATEGY-5M LIVE — %s", environment.upper())
 
-    # 1. Download Data
-    print("📥 Checking for latest data...")
+    # 1. Download Data (M5, H1, H4) for warmup
+    print("📥 Checking for latest data (M5, H1, H4)...")
     try:
         download_script = PROJECT_ROOT / "scripts" / "download_data.py"
-        # Download data for instrument (H1, H4, D, W are defaults or handled in config)
+        # Download necessary TFs for EUR_USD
+        # Logic: We need M5, H1, H4, D for correct warmup.
+        # But download_data.py downloads ALL granularities by default if not specified? 
+        # Or we loop. Let's just run it for EUR_USD and hope the default config includes them.
+        # The default config in instruments.toml does include M5, H1, H4, D.
         subprocess.check_call([sys.executable, str(download_script), "--instrument", "EUR_USD"])
         print("✅ Data download finished.")
     except Exception as e:
@@ -114,15 +119,15 @@ def main():
         environment=environment,
     )
 
-    # 3. Load Instruments (Moved up to provide to factories)
+    # 3. Load Instruments
     provider = OandaInstrumentProvider(inst_config)
     print("⏳ Loading instruments from OANDA...")
     instruments = provider.load_all()
     print(f"✅ Loaded {len(instruments)} instruments.")
 
-    # 4. Configure Node with Client Configs
+    # 4. Configure Node
     node_config = TradingNodeConfig(
-        trader_id="TITAN-MTF",
+        trader_id="TITAN-MTF-5M",
         data_clients={"OANDA": data_config},
         exec_clients={"OANDA": exec_config},
     )
@@ -132,56 +137,39 @@ def main():
         node.cache.add_instrument(inst)
 
     # 5. Register Clients
-    # Wrapper Factories to inject config
     class LiveOandaDataFactory(LiveDataClientFactory):
         conf = data_config
-
         @classmethod
         def create(cls, loop, msgbus, cache, clock, name, **kwargs):
-            print(f"🔧 Creating OandaDataClient ({name})...")
             return OandaDataClient(
-                loop=loop,
-                client_id=ClientId("OANDA-DATA"),
-                venue=Venue("OANDA"),
-                config=cls.conf,
-                msgbus=msgbus,
-                cache=cache,
-                clock=clock,
+                loop=loop, client_id=ClientId("OANDA-DATA"), venue=Venue("OANDA"),
+                config=cls.conf, msgbus=msgbus, cache=cache, clock=clock,
             )
 
     class LiveOandaExecutionFactory(LiveExecClientFactory):
         conf = exec_config
         prov = provider
-
         @classmethod
         def create(cls, loop, msgbus, cache, clock, name, **kwargs):
-            print(f"🔧 Creating OandaExecutionClient ({name})...")
             return OandaExecutionClient(
-                loop=loop,
-                client_id=ClientId("OANDA-EXEC"),
-                venue=Venue("OANDA"),
-                oms_type=OmsType.NETTING,
-                account_type=AccountType.MARGIN,
-                base_currency=None,  # Or Currency.from_str("USD")
-                instrument_provider=cls.prov,
-                config=cls.conf,
-                msgbus=msgbus,
-                cache=cache,
-                clock=clock,
+                loop=loop, client_id=ClientId("OANDA-EXEC"), venue=Venue("OANDA"),
+                oms_type=OmsType.NETTING, account_type=AccountType.MARGIN,
+                base_currency=None, instrument_provider=cls.prov, config=cls.conf,
+                msgbus=msgbus, cache=cache, clock=clock,
             )
 
     node.add_data_client_factory("OANDA", LiveOandaDataFactory)
     node.add_exec_client_factory("OANDA", LiveOandaExecutionFactory)
 
-    # 5. Configure Strategy
+    # 6. Configure Strategy (Optimized 5m)
     strat_config = MTFConfluenceConfig(
         instrument_id="EUR/USD.OANDA",
         bar_types={
+            "M5": "EUR/USD.OANDA-5-MINUTE-MID-INTERNAL",
             "H1": "EUR/USD.OANDA-1-HOUR-MID-INTERNAL",
             "H4": "EUR/USD.OANDA-4-HOUR-MID-INTERNAL",
-            "D": "EUR/USD.OANDA-1-DAY-MID-INTERNAL",
-            "W": "EUR/USD.OANDA-1-WEEK-MID-INTERNAL",
         },
+        config_path="config/mtf_5m.toml",
         risk_pct=0.01,
         leverage_cap=5.0,
         warmup_bars=1000,
@@ -190,12 +178,10 @@ def main():
     strategy = MTFConfluenceStrategy(strat_config)
     node.trader.add_strategy(strategy)
 
-    logger.info("Strategy Added. Subscriptions:")
-    for tf, bt in strat_config.bar_types.items():
-        logger.info(f"  {tf}: {bt}")
+    logger.info("Strategy Added. M5 Optimized Mode.")
 
-    # 6. Run
-    print("🚀 Starting Trading Node...")
+    # 7. Run
+    print("🚀 Starting Trading Node (MTF-5m)...")
 
     def stop_node(*args):
         print("\n🛑 Stopping...")
@@ -203,12 +189,6 @@ def main():
 
     signal.signal(signal.SIGINT, stop_node)
     signal.signal(signal.SIGTERM, stop_node)
-
-    print(f"DEBUG Node: {[d for d in dir(node) if 'data' in d or 'client' in d]}")
-    try:
-        print(f"DEBUG Trader: {[d for d in dir(node.trader) if 'data' in d or 'client' in d]}")
-    except Exception:
-        pass
 
     try:
         node.build()

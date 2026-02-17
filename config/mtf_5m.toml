@@ -1,0 +1,29 @@
+# MTF Strategy-5m optimized configuration
+# Generated from optimization results (Feb 2026)
+
+# Global Settings
+ma_type = "WMA"
+confirmation_threshold = 0.55
+
+[weights]
+M5 = 0.2
+H1 = 0.4
+H4 = 0.4
+
+# Timeframe specific parameters
+# (Defaults found to be optimal in Stage 3)
+
+[M5]
+fast_ma = 20
+slow_ma = 50
+rsi_period = 14
+
+[H1]
+fast_ma = 20
+slow_ma = 50
+rsi_period = 14
+
+[H4]
+fast_ma = 20
+slow_ma = 50
+rsi_period = 14

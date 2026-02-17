@@ -19,7 +19,7 @@ from nautilus_trader.model.objects import Quantity
 from nautilus_trader.trading.strategy import Strategy
 
 # Reuse robust indicator implementations
-from titan.strategies.ml.features import atr, rsi, sma
+from titan.strategies.ml.features import atr, ema, rsi, sma, wma
 
 
 class MTFConfluenceConfig(StrategyConfig):
@@ -60,18 +60,19 @@ class MTFConfluenceStrategy(Strategy):
             self.bar_type_map[bt] = tf
 
         # State buffers
-        self.history = {tf: [] for tf in ["H1", "H4", "D", "W"]}
+        self.history = {tf: [] for tf in ["M5", "H1", "H4", "D", "W"]}
 
         # Current Signal State (-1.0 to +1.0) for each TF
         # Initialize to 0 (Neutral)
-        self.signals = {tf: 0.0 for tf in ["H1", "H4", "D", "W"]}
+        self.signals = {tf: 0.0 for tf in ["M5", "H1", "H4", "D", "W"]}
 
         # Raw indicator values for the status dashboard
         self.indicator_state = {
-            tf: {"fast_ma": None, "slow_ma": None, "rsi": None} for tf in ["H1", "H4", "D", "W"]
+            tf: {"fast_ma": None, "slow_ma": None, "rsi": None}
+            for tf in ["M5", "H1", "H4", "D", "W"]
         }
 
-        # Latest ATR (H1) for volatility-adjusted sizing
+        # Latest ATR (H1 or used TF) for volatility-adjusted sizing
         self.latest_atr = None
 
     def _load_toml(self, path: str) -> dict:
@@ -96,8 +97,11 @@ class MTFConfluenceStrategy(Strategy):
 
     def _warmup_all(self):
         """Load history for all timeframes."""
-        project_root = Path(__file__).resolve().parent.parent
+        # titan/strategies/mtf/strategy.py -> mtf -> strategies -> titan -> ROOT
+        project_root = Path(__file__).resolve().parents[3]
         data_dir = project_root / "data"
+
+        self.log.info(f"Looking for warmup data in: {data_dir}")
 
         # Iterate over our TFs
         for bt, tf in self.bar_type_map.items():
@@ -106,31 +110,65 @@ class MTFConfluenceStrategy(Strategy):
             spec = bt.spec
             agg = spec.aggregation
             interval = spec.step
+            
+            # Robust extraction of aggregation string
+            agg_str = str(agg)
+            # Handle enum objects like Aggregation.MINUTE
+            if hasattr(agg, "name"):
+                agg_str = agg.name
+            elif hasattr(agg, "value"):
+                agg_str = str(agg.value)
+            
+            agg_str = agg_str.upper()
 
             suffix = "UNKNOWN"
-            if "HOUR" in str(agg):
+            # Logic: If it's a 5-minute bar, it maps to M5.
+            # Check interval first if Agg is MINUTE
+            if "MINUTE" in agg_str:
+                if interval == 5:
+                    suffix = "M5"
+                # Fallback: sometimes Aggregation is just MINUTE and relies on step
+            elif "HOUR" in agg_str:
                 if interval == 1:
                     suffix = "H1"
                 elif interval == 4:
                     suffix = "H4"
-            elif "DAY" in str(agg):
+            elif "DAY" in agg_str:
                 suffix = "D"
-            elif "WEEK" in str(agg):
+            elif "WEEK" in agg_str:
                 suffix = "W"
+            
+            # Additional Fallback based on BarType string (e.g. "EUR/USD-5-MINUTE-MID-INTERNAL")
+            if suffix == "UNKNOWN":
+                 bt_str = str(bt).upper()
+                 if "5-MINUTE" in bt_str:
+                     suffix = "M5"
+                 elif "1-HOUR" in bt_str:
+                     suffix = "H1"
+                 elif "4-HOUR" in bt_str:
+                     suffix = "H4"
+                 elif "1-DAY" in bt_str:
+                     suffix = "D"
 
             if suffix == "UNKNOWN":
-                self.log.warning(f"Unknown BarType spec usage: {bt}")
+                msg = f"Unknown BarType spec usage: {bt} (Agg: {agg_str}, Interval: {interval})"
+                self.log.warning(msg)
                 continue
 
             pair_str = self.instrument_id.symbol.value.replace("/", "_")
             parquet_path = data_dir / f"{pair_str}_{suffix}.parquet"
 
             if not parquet_path.exists():
-                self.log.warning(f"Missing warmup file: {parquet_path}")
+                msg = f"Missing warmup file: {parquet_path}"
+                self.log.warning(msg)
                 continue
 
             self.log.info(f"Loading {tf} warmup from {parquet_path}")
-            df = pd.read_parquet(parquet_path).sort_index().tail(self.config.warmup_bars)
+            try:
+                df = pd.read_parquet(parquet_path).sort_index().tail(self.config.warmup_bars)
+            except Exception as e:
+                self.log.error(f"Failed to load parquet: {e}")
+                continue
 
             # Populate history
             for t, row in df.iterrows():
@@ -190,10 +228,21 @@ class MTFConfluenceStrategy(Strategy):
         fast_p = params.get("fast_ma", 10)
         slow_p = params.get("slow_ma", 20)
         rsi_p = params.get("rsi_period", 14)
+        
+        # Determine MA Type (default SMA for backward compat)
+        ma_type = self.toml_cfg.get("ma_type", "SMA").upper()
 
         # Calc Indicators
-        s_fast = sma(close, fast_p)
-        s_slow = sma(close, slow_p)
+        if ma_type == "EMA":
+            s_fast = ema(close, fast_p)
+            s_slow = ema(close, slow_p)
+        elif ma_type == "WMA":
+            s_fast = wma(close, fast_p)
+            s_slow = wma(close, slow_p)
+        else: # SMA
+            s_fast = sma(close, fast_p)
+            s_slow = sma(close, slow_p)
+            
         r = rsi(close, rsi_p)
 
         # Store ATR if this is H1 (for sizing)
@@ -280,8 +329,19 @@ class MTFConfluenceStrategy(Strategy):
         lines.append(f"  MTF STATUS @ Price: {float(price):.5f}")
         lines.append(f"{'─' * 55}")
 
-        for tf in ["D", "H4", "H1", "W"]:
-            st = self.indicator_state[tf]
+        if not self.signals:
+            return
+
+        # Sort TFs for display (Slowest to Fastest usually looks best, or config order)
+        # We can use the keys from self.signals, filtered by what's actually in use
+        # or just hardcode the expected set for 5m strategy: D, H4, H1, M5
+        display_tfs = [tf for tf in ["D", "H4", "H1", "M5", "W"] if tf in self.signals]
+
+        for tf in display_tfs:
+            st = self.indicator_state.get(tf)
+            if not st:
+                continue
+
             sig = self.signals[tf]
             w = weights.get(tf, 0)
 
@@ -294,7 +354,7 @@ class MTFConfluenceStrategy(Strategy):
 
             weighted = sig * w
             lines.append(
-                f"  {tf:>2}  │  SMA: {sma_dir}  │  RSI: {rsi_val:>5}"
+                f"  {tf:>2}  │  MA:  {sma_dir}  │  RSI: {rsi_val:>5}"
                 f"  │  Signal: {sig:+.1f}  │  Weighted: {weighted:+.3f}"
             )
 
@@ -359,43 +419,35 @@ class MTFConfluenceStrategy(Strategy):
         # 1% Risk Sizing
         # Units = (Equity * Risk%) / (2 * ATR)
 
-        account = self.cache.account("001")  # Default account ID for Oanda in Nautilus usually?
-        # Actually Nautilus handles multiple accounts. We likely have one.
-        # If simulation, account ID might differ.
-        if not account:
-            # Fallback for backtest/practice if account ID assumes match
-            # Try to get *any* account
-            # accounts = list(self.cache.accounts.values())
-            # But self.cache.account accepts ID.
-            # Let's assume passed in config or just use the first one found?
-            # Or use self.portfolio.equity (if available strategies have access)
-            # Strategy has self.account usually? No.
-            # self.cache.accounts is a property? No.
-            equity = Decimal("100000")  # Default fallback
-            # Try finding equity
-            pass
-
-        # Strategy doesnt have direct equity access easily without Account ID.
-        # But we can assume we know it or pass it.
-        # LIVE: We need real equity.
-        # self.cache.accounts is a Dictionary.
+        # Get Account (Dynamic lookup)
+        # In live mode, we should look for the account associated with the execution client or just grab the first one.
+        # self.cache.accounts() returns a list of Account objects directly.
         accounts = self.cache.accounts()
-        if accounts:
-            equity = list(accounts.values())[0].balance.total  # Approximate
-        else:
-            equity = Decimal("100000")
-
-        risk_amt = float(equity) * self.config.risk_pct
-        stop_dist = 2.0 * self.latest_atr
-
-        if stop_dist == 0:
+        if not accounts:
+            self.log.error("No account found in cache! Cannot size position.")
             return
 
-        raw_units = risk_amt / stop_dist
+        account = accounts[0]
+        
+        # Use balance_total() to get Money object, then cast to float
+        # This includes free + locked (Equity)
+        equity_money = account.balance_total()
+        equity = float(equity_money.as_double())
+
+        risk_amount = equity * self.config.risk_pct
+        stop_loss_dist = float(self.latest_atr) * 2.0
+
+        if stop_loss_dist == 0:
+            return
+
+        raw_units = risk_amount / stop_loss_dist
 
         # Cap Leverage
-        max_units = (float(equity) * self.config.leverage_cap) / float(price)
-        units = min(raw_units, max_units)
+        if float(price) > 0:
+            max_units = (equity * self.config.leverage_cap) / float(price)
+            units = min(raw_units, max_units)
+        else:
+            units = 0
 
         # Round to integer (Oanda requirement usually, or lots?)
         # Oanda accepts units (int).

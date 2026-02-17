@@ -91,6 +91,11 @@ def ema(s: pd.Series, p: int) -> pd.Series:
     return s.ewm(span=p, adjust=False).mean()
 
 
+def wma(s: pd.Series, p: int) -> pd.Series:
+    weights = np.arange(1, p + 1)
+    return s.rolling(p).apply(lambda x: np.dot(x, weights) / weights.sum(), raw=True)
+
+
 def rsi(s: pd.Series, p: int = 14) -> pd.Series:
     d = s.diff()
     g = d.where(d > 0, 0.0).rolling(p).mean()

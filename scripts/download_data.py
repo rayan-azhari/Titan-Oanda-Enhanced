@@ -5,6 +5,7 @@ specified in config/instruments.toml. Stores output as Parquet
 files in data/.
 """
 
+import argparse
 import sys
 import tomllib
 from datetime import timezone
@@ -54,9 +55,31 @@ def main() -> None:
     pairs = config.get("instruments", {}).get("pairs", [])
     granularities = config.get("instruments", {}).get("granularities", ["M5"])
 
-    if not pairs:
-        print("ERROR: No pairs defined in config/instruments.toml")
-        sys.exit(1)
+    parser = argparse.ArgumentParser(description="Download OANDA data")
+    parser.add_argument("-i", "--instrument", help="Filter by instrument (e.g. EUR_USD)")
+    parser.add_argument("-g", "--granularity", help="Filter by granularity (e.g. M5, H1)")
+    args = parser.parse_args()
+
+    if args.instrument:
+        if args.instrument in pairs:
+            pairs = [args.instrument]
+        else:
+            print(f"⚠ Warning: {args.instrument} not found in config. Using all pairs.")
+            # Or exit? Let's just warn and proceed with all, or exit?
+            # Better to be strict: if user asks for X and it's not in config, maybe they meant X is valid but not in config?
+            # Actually, config defines granularities too. Let's just filter list if it exists, or add it if valid?
+            # Simplest: Filter existing list.
+            if args.instrument not in pairs:
+                 print(f"❌ Error: Instrument {args.instrument} not in instruments.toml")
+                 sys.exit(1)
+            pairs = [args.instrument]
+
+    if args.granularity:
+        if args.granularity in granularities:
+            granularities = [args.granularity]
+        else:
+             print(f"❌ Error: Granularity {args.granularity} not in instruments.toml")
+             sys.exit(1)
 
     print(f"📥 Downloading data for {len(pairs)} pairs × {len(granularities)} granularities\n")
 
