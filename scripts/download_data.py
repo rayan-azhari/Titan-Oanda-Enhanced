@@ -7,6 +7,7 @@ files in data/.
 
 import sys
 import tomllib
+from datetime import timezone
 from pathlib import Path
 
 # Add project root to path
@@ -67,6 +68,14 @@ def main() -> None:
             from_time = None
             if output_path.exists():
                 existing = pd.read_parquet(output_path)
+                # Enforce timestamp type
+                if not pd.api.types.is_datetime64_any_dtype(existing["timestamp"]):
+                    existing["timestamp"] = pd.to_datetime(existing["timestamp"], utc=True)
+
+                # Sanitize: Remove future data if any
+                now_utc = pd.Timestamp.now(timezone.utc)
+                existing = existing[existing["timestamp"] <= now_utc]
+
                 if not existing.empty:
                     last_ts = existing["timestamp"].max()
                     from_time = last_ts.isoformat()
@@ -82,13 +91,33 @@ def main() -> None:
                     print(f"    No new data for {pair} {gran}.")
                     continue
 
+                df["timestamp"] = pd.to_datetime(df["timestamp"], utc=True)
+
                 if output_path.exists():
                     existing = pd.read_parquet(output_path)
+                    # Enforce timestamp type on existing data too, just in case
+                    if not pd.api.types.is_datetime64_any_dtype(existing["timestamp"]):
+                        existing["timestamp"] = pd.to_datetime(existing["timestamp"], utc=True)
+
                     df = (
                         pd.concat([existing, df])
                         .drop_duplicates(subset="timestamp")
                         .sort_values("timestamp")
                     )
+
+                # Ensure numeric types for OHLCV to avoid pyarrow issues
+                cols = ["open", "high", "low", "close", "volume"]
+                for col in cols:
+                    if col in df.columns:
+                        df[col] = pd.to_numeric(df[col], errors="coerce")
+
+                # Filter out future timestamps (e.g. from backtest leakage or OANDA glitches)
+                now_utc = pd.Timestamp.now(timezone.utc)
+                df = df[df["timestamp"] <= now_utc]
+
+                if df.empty:
+                    print("    ⚠ All data was future-dated. Skipping save.")
+                    continue
 
                 df.to_parquet(output_path, index=False)
                 prior_count = 0

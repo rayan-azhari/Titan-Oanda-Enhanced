@@ -127,10 +127,11 @@ uv run python scripts/run_live_mtf.py
 uv run python scripts/run_live_ml.py
 ```
 The engine will:
-1. Load instruments from OANDA.
-2. Warm up indicators from local Parquet data (`data/EUR_USD_H1.parquet`, etc.).
-3. Reconcile open positions with OANDA (if any exist).
-4. Subscribe to the live price stream and start processing bars.
+1. **Checks for and automatically downloads latest data** (runs `scripts/download_data.py`).
+2. Load instruments from OANDA.
+3. Warm up indicators from local Parquet data (`data/EUR_USD_H1.parquet`, etc.).
+4. Reconcile open positions with OANDA (if any exist).
+5. Subscribe to the live price stream and start processing bars.
 
 A **status dashboard** prints to the Nautilus log on every bar close showing per-timeframe SMA direction, RSI, confluence score, and position state.
 

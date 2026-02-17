@@ -49,12 +49,12 @@ def candles_to_dataframe(candles: list[dict]) -> pd.DataFrame:
         bid = c["bid"]
         rows.append(
             {
-                "timestamp": pd.Timestamp(c["time"]),
+                "timestamp": pd.to_datetime(c["time"]),
                 "open": float(bid["o"]),
                 "high": float(bid["h"]),
                 "low": float(bid["l"]),
                 "close": float(bid["c"]),
-                "volume": int(c["volume"]),
+                "volume": float(c["volume"]),
             }
         )
     return pd.DataFrame(rows)

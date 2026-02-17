@@ -277,7 +277,7 @@ class MTFConfluenceStrategy(Strategy):
         """Print a formatted multi-timeframe status dashboard."""
         sep = "═" * 55
         lines = [f"\n{sep}"]
-        lines.append(f"  MTF STATUS @ Price: {price:.5f}")
+        lines.append(f"  MTF STATUS @ Price: {float(price):.5f}")
         lines.append(f"{'─' * 55}")
 
         for tf in ["D", "H4", "H1", "W"]:

@@ -234,7 +234,7 @@ If you need to extend this adapter:
 | Quote Ticks | ✅ Yes | Real-time Bid/Ask |
 | Time Bars | ✅ Yes | Aggregated internally by Nautilus |
 | Order Book | ❌ No | Not supported by OANDA V20 |
-| Historical Data | ❌ No | Use Parquet files (`NautilusDataLoader`) |
+| Historical Data | ❌ No | Use Parquet files (synced by `download_data.py`) |
 | **Execution** | | |
 | Market Orders | ✅ Yes | |
 | Limit Orders | ✅ Yes | GTC by default |
@@ -246,6 +246,7 @@ If you need to extend this adapter:
 ### 2. `titan.data`
 Utilities for fetching, validating, and managing historical data.
 *   **`titan.data.oanda`**: primitives for OANDA API data requests (candles, instruments).
+    *   *Usage:* Used by `scripts/download_data.py` (which runs automatically in live strategies) to sync history.
     *   `fetch_candles(client, instrument, granularity, ...)`: Robust pagination for history.
 *   **`titan.data.validation`**: Data integrity checks.
     *   `check_gaps(df)`: Detects missing candles.

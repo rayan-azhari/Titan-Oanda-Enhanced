@@ -76,6 +76,8 @@ We cannot trade without knowing what the market did in the past.
 uv run python scripts/download_data.py
 ```
 
+> **Note:** When running **Live Strategies** (Phase 5), this step runs **automatically**. You only need to run this manually for backtesting or research.
+
 **What it does:**
 - Downloads price candles (Open, High, Low, Close) for major currency pairs (EUR/USD, GBP/USD, etc.).
 - Saves them as **Parquet** files (highly efficient data files) in the `data/` folder.
@@ -278,10 +280,11 @@ uv run python scripts/run_live_mtf.py
 ```
 
 **What it does:**
-1.  **Connects:** Authenticates with OANDA (Practice).
-2.  **Loads Instruments:** Fetches available pairs.
-3.  **Warms Up:** Loads local Parquet data (`data/raw/`) to calculate moving averages immediately.
-4.  **Trades:** Executes Long/Short positions based on the H1/H4/D/W confluence score.
+1.  **Auto-Download:** Runs `scripts/download_data.py` to get latest candles.
+2.  **Connects:** Authenticates with OANDA (Practice).
+3.  **Loads Instruments:** Fetches available pairs.
+4.  **Warms Up:** Loads local Parquet data (`data/raw/`) to calculate moving averages immediately.
+5.  **Trades:** Executes Long/Short positions based on the H1/H4/D/W confluence score.
 
 ---
 
@@ -308,10 +311,11 @@ uv run python scripts/run_live_mtf.py
 *Uses the H1+H4+D+W trend confluence logic. Prints a status dashboard every hour.*
 
 **What Happens Next:**
-1.  **Connection:** The system connects to OANDA.
-2.  **Warmup:** It loads recent data from `data/` to calculate indicators immediately.
-3.  **Reconciliation:** It checks if you have existing positions and syncs them.
-4.  **Trading:** It streams live prices (`QUOTE EUR_USD...`) and executes trades when signals align.
+1.  **Data Sync:** Automatically downloads latest data (for **ALL** strategies).
+2.  **Connection:** The system connects to OANDA.
+3.  **Warmup:** It loads recent data from `data/` to calculate indicators immediately.
+4.  **Reconciliation:** It checks if you have existing positions and syncs them.
+5.  **Trading:** It streams live prices (`QUOTE EUR_USD...`) and executes trades when signals align.
 
 **Monitoring:**
 - **Logs:** Check `.tmp/logs/` for detailed files like `mtf_live_*.log`.

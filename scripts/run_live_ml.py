@@ -8,6 +8,7 @@ loads instruments, and starts the event loop.
 
 import logging
 import signal
+import subprocess
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -82,6 +83,20 @@ def main():
     logger.info("=" * 50)
     logger.info("  TITAN NAUTILUS ENGINE — %s", environment.upper())
     logger.info("=" * 50)
+
+    # 0. Auto-Download Data
+    print("📥 Checking for latest data...")
+    try:
+        download_script = PROJECT_ROOT / "scripts" / "download_data.py"
+        subprocess.check_call([sys.executable, str(download_script)])
+        print("✅ Data download finished.")
+    except subprocess.CalledProcessError as e:
+        logger.error(f"Data download failed with exit code {e.returncode}")
+        print("❌ Data download failed. Aborting to be safe.")
+        sys.exit(1)
+    except Exception as e:
+        logger.error(f"Unexpected error during data download: {e}")
+        sys.exit(1)
 
     # 1. Configure the Node
     node_config = TradingNodeConfig(
