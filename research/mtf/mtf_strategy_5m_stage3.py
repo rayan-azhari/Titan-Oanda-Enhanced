@@ -55,9 +55,7 @@ def compute_ma(close: pd.Series, period: int, ma_type: Literal["SMA", "EMA", "WM
         return close.ewm(span=period, adjust=False).mean()
     elif ma_type == "WMA":
         weights = np.arange(1, period + 1, dtype=float)
-        return close.rolling(period).apply(
-            lambda x: np.dot(x, weights) / weights.sum(), raw=True
-        )
+        return close.rolling(period).apply(lambda x: np.dot(x, weights) / weights.sum(), raw=True)
     else:  # SMA
         return close.rolling(period).mean()
 
@@ -157,9 +155,7 @@ def run_stage3_optimization(pair: str = "EUR_USD") -> None:
             signals = {}
             for tf, data in [("M5", m5), ("H1", h1), ("H4", h4), ("D", d1)]:
                 p = test_params[tf]
-                sig = compute_rsa_ma_signal(
-                    data["close"], p["fast"], p["slow"], p["rsi"], MA_TYPE
-                )
+                sig = compute_rsa_ma_signal(data["close"], p["fast"], p["slow"], p["rsi"], MA_TYPE)
                 if tf != "M5":
                     sig = sig.reindex(m5.index, method="ffill").fillna(0)
                 signals[tf] = sig
