@@ -16,7 +16,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
+PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
 RAW_DATA_DIR = PROJECT_ROOT / "data"
@@ -396,6 +396,80 @@ def sweep_adx_filter(
 # ─────────────────────────────────────────────────────────────────────
 
 
+
+
+
+def _process_mtf_tf(
+    tf: str,
+    pair: str,
+    base_index: pd.Index,
+    base_entries: pd.Series,
+    base_exits: pd.Series,
+    close: pd.Series,
+    fees: float,
+) -> list[dict]:
+    """Helper to process a single higher timeframe in parallel."""
+    htf_df = load_data(pair, tf)
+    if htf_df is None or len(htf_df) < 60:
+        print(f"    ⚠ {tf} data insufficient, skipping.")
+        return []
+
+    htf_close = htf_df["close"]
+    results = []
+
+    sma_fasts = [5, 8, 10, 13, 15, 20]
+    sma_slows = [13, 20, 26, 30, 40, 50, 60]
+    rsi_periods = [7, 9, 14, 21]
+    rsi_thresholds = [40, 45, 50, 55, 60]
+
+    for sf in sma_fasts:
+        for ss in sma_slows:
+            if sf >= ss:
+                continue
+            fast_ma = calc_sma(htf_close, sf)
+            slow_ma = calc_sma(htf_close, ss)
+            trend_bias = (fast_ma > slow_ma).astype(float)
+
+            for rp in rsi_periods:
+                htf_rsi = calc_rsi(htf_close, rp)
+
+                for rt in rsi_thresholds:
+                    rsi_bias = (htf_rsi > rt).astype(float)
+
+                    # Combined bias: both must agree for bullish
+                    bullish = (trend_bias == 1) & (rsi_bias == 1)
+
+                    # Align to base timeframe
+                    bullish_aligned = bullish.reindex(base_index, method="ffill").fillna(False)
+
+                    # Filter: only enter when higher TF is bullish
+                    filtered_entries = base_entries & bullish_aligned
+
+                    pf = vbt.Portfolio.from_signals(
+                        close,
+                        entries=filtered_entries,
+                        exits=base_exits,
+                        init_cash=10_000,
+                        fees=fees,
+                    )
+                    s = float(pf.sharpe_ratio())
+                    if np.isfinite(s):
+                        results.append(
+                            {
+                                "indicator": f"MTF_{tf}",
+                                "params": {
+                                    "timeframe": tf,
+                                    "sma_fast": sf,
+                                    "sma_slow": ss,
+                                    "rsi_period": rp,
+                                    "rsi_threshold": rt,
+                                },
+                                "sharpe": round(s, 4),
+                            }
+                        )
+    return results
+
+
 def sweep_mtf_confluence(
     base_df: pd.DataFrame,
     base_entries: pd.Series,
@@ -410,73 +484,23 @@ def sweep_mtf_confluence(
     trade filter when layered on top of a base strategy.
     """
     # Determine which higher TFs to test
-    tf_order = ["H1", "H4", "D", "W"]
-    base_idx = tf_order.index(base_gran) if base_gran in tf_order else 1
+    tf_order = ["M15", "H1", "H4", "D", "W"]
+    base_idx = tf_order.index(base_gran) if base_gran in tf_order else 0
     higher_tfs = tf_order[base_idx + 1 :]
-
-    sma_fasts = [5, 8, 10, 13, 15, 20]
-    sma_slows = [13, 20, 26, 30, 40, 50, 60]
-    rsi_periods = [7, 9, 14, 21]
-    rsi_thresholds = [40, 45, 50, 55, 60]
 
     close = base_df["close"]
     base_index = base_df.index
-    results = []
 
-    for tf in higher_tfs:
-        htf_df = load_data(pair, tf)
-        if htf_df is None or len(htf_df) < 60:
-            print(f"    ⚠ {tf} data insufficient, skipping.")
-            continue
+    # Run parallel jobs for each higher timeframe
+    all_results = Parallel(n_jobs=-1)(
+        delayed(_process_mtf_tf)(
+            tf, pair, base_index, base_entries, base_exits, close, fees
+        )
+        for tf in higher_tfs
+    )
 
-        htf_close = htf_df["close"]
-
-        for sf in sma_fasts:
-            for ss in sma_slows:
-                if sf >= ss:
-                    continue
-                fast_ma = calc_sma(htf_close, sf)
-                slow_ma = calc_sma(htf_close, ss)
-                trend_bias = (fast_ma > slow_ma).astype(float)
-
-                for rp in rsi_periods:
-                    htf_rsi = calc_rsi(htf_close, rp)
-
-                    for rt in rsi_thresholds:
-                        rsi_bias = (htf_rsi > rt).astype(float)
-
-                        # Combined bias: both must agree for bullish
-                        bullish = (trend_bias == 1) & (rsi_bias == 1)
-
-                        # Align to base timeframe
-                        bullish_aligned = bullish.reindex(base_index, method="ffill").fillna(False)
-
-                        # Filter: only enter when higher TF is bullish
-                        filtered_entries = base_entries & bullish_aligned
-
-                        pf = vbt.Portfolio.from_signals(
-                            close,
-                            entries=filtered_entries,
-                            exits=base_exits,
-                            init_cash=10_000,
-                            fees=fees,
-                        )
-                        s = float(pf.sharpe_ratio())
-                        if np.isfinite(s):
-                            results.append(
-                                {
-                                    "indicator": f"MTF_{tf}",
-                                    "params": {
-                                        "timeframe": tf,
-                                        "sma_fast": sf,
-                                        "sma_slow": ss,
-                                        "rsi_period": rp,
-                                        "rsi_threshold": rt,
-                                    },
-                                    "sharpe": round(s, 4),
-                                }
-                            )
-
+    # Flatten results
+    results = [item for sublist in all_results for item in sublist]
     return results
 
 
@@ -686,7 +710,7 @@ def write_features_toml(
         lines.append(f"best_stability = {top['stability']}")
     lines.append("")
 
-    with open(out_path, "w") as f:
+    with open(out_path, "w", encoding="utf-8") as f:
         f.write("\n".join(lines))
 
     print(f"\n  ✅ Wrote tuned parameters → {out_path.name}")
@@ -855,13 +879,31 @@ def _reconstruct_signals(
     return entries, exits
 
 
+
+
+
 def main() -> None:
     """Run the full feature selection pipeline."""
+    parser = argparse.ArgumentParser(description="Run VBT feature selection.")
+    parser.add_argument("--pair", type=str, help="Specific pair to run (e.g. EUR_USD)")
+    parser.add_argument("--granularity", type=str, help="Specific base granularity (e.g. H4)")
+    args = parser.parse_args()
+
     config = load_instruments_config()
-    pairs = config.get("instruments", {}).get("pairs", [])
-    granularities = config.get("instruments", {}).get("granularities", ["H4"])
-    # Use the primary analysis timeframe (2nd in list = H4)
-    base_gran = granularities[1] if len(granularities) > 1 else "H4"
+
+    if args.pair:
+        pairs = [args.pair]
+    else:
+        pairs = config.get("instruments", {}).get("pairs", [])
+
+    if args.granularity:
+        base_gran = args.granularity
+    else:
+        granularities = config.get("instruments", {}).get("granularities", ["H4"])
+        # Use the primary analysis timeframe (2nd in list = H4)
+        base_gran = granularities[1] if len(granularities) > 1 else "H4"
+
+    print(f"🚀 Starting Feature Selection for {len(pairs)} pairs on {base_gran}...")
 
     for pair in pairs:
         run_sweep_for_pair(pair, base_gran)

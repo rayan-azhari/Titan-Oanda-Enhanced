@@ -249,23 +249,38 @@ upper_threshold = 0.1
 
 ## 🧠 Phase 4: Train the AI (Machine Learning)
 
-Simple rules (RSI < 30) are good, but AI is better. The ML pipeline now **automatically reads** the tuned parameters from `config/features.toml` (written by Phase 3.5). If the config doesn't exist, it falls back to sensible defaults.
+## 🧠 Phase 4: Train the AI (Machine Learning)
 
-**The Command (full pipeline):**
-```bash
-uv run python research/ml/run_pipeline.py
-```
+This phase turns your research into a predictive model. The workflow is designed to be seamless: **Research (Phase 3.5) → Training (Phase 4)**.
 
-**What it does:**
-1. Loads tuned indicator parameters from `config/features.toml`
-2. Builds a feature matrix (RSI, SMA, MACD, Bollinger, Stochastic, ADX, MTF bias) using those tuned params
-3. Engineers a 3-class target: LONG, SHORT, FLAT
-4. Trains XGBoost via walk-forward cross-validation
-5. Backtests ML predictions via VectorBT
-6. Saves the model if profitable
+### Step-by-Step Workflow
+
+1.  **Ensure Feature Selection is Complete:**
+    Before training, you must run the feature selection step (Phase 3.5) to identify the best indicators for the current market conditions.
+    ```bash
+    uv run python research/alpha_loop/run_feature_selection.py
+    ```
+    *Output:* This updates `config/features.toml`.
+
+2.  **Run the ML Pipeline:**
+    The pipeline reads your tuned features, builds a 3-class target (Long/Short/Flat), and trains models using Walk-Forward Cross-Validation.
+    ```bash
+    uv run python research/ml/run_pipeline.py
+    ```
+
+3.  **Review the Report:**
+    Check the output in `.tmp/reports/`. Look for an **OOS Sharpe > 1.0** and **Win Rate > 50%**.
+
+**What the Pipeline Does:**
+1.  **Loads Config:** Reads tuned indicator parameters from `config/features.toml`.
+2.  **Builds Features:** Generates the feature matrix (RSI, SMA, MACD, Bollinger, Stochastic, ADX, MTF bias).
+3.  **Engineers Target:** Creates a 3-class target (LONG, SHORT, FLAT).
+4.  **Trains Models:** Trains GradientBoosting and RandomForest classifiers via walk-forward cross-validation.
+5.  **Backtests:** Simulates trading the model's predictions using VectorBT on Out-of-Sample data.
+6.  **Saves Model:** Automatically saves the best model to `models/` (e.g., `ml_strategy_H4_gradientboosting_20231027.joblib`).
 
 **Sanity Check:**
-- Look in `models/`. You should see `.joblib` files (e.g., `xgb_EUR_USD.joblib`).
+- Look in `models/`. You should see `.joblib` files.
 - Creating these files means your AI is ready to make decisions.
 
 ---

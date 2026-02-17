@@ -79,73 +79,93 @@ def main() -> None:
         for gran in granularities:
             output_path = DATA_DIR / f"{pair}_{gran}.parquet"
 
-            # Resume logic
-            from_time = None
+            # Resume logic or start from 2005
+            from_time = "2005-01-01T00:00:00Z"
             if output_path.exists():
-                existing = pd.read_parquet(output_path)
-                # Enforce timestamp type
-                if not pd.api.types.is_datetime64_any_dtype(existing["timestamp"]):
-                    existing["timestamp"] = pd.to_datetime(existing["timestamp"], utc=True)
-
-                # Sanitize: Remove future data if any
-                now_utc = pd.Timestamp.now(timezone.utc)
-                existing = existing[existing["timestamp"] <= now_utc]
-
-                if not existing.empty:
-                    last_ts = existing["timestamp"].max()
-                    from_time = last_ts.isoformat()
-                    print(f"  ↻ Resuming {pair} {gran} from {from_time}")
-            else:
-                print(f"  ↓ Downloading {pair} {gran}...")
-
-            try:
-                candles = fetch_candles(client, pair, gran, from_time=from_time, count=5000)
-                df = candles_to_dataframe(candles)
-
-                if df.empty:
-                    print(f"    No new data for {pair} {gran}.")
-                    continue
-
-                df["timestamp"] = pd.to_datetime(df["timestamp"], utc=True)
-
-                if output_path.exists():
+                try:
                     existing = pd.read_parquet(output_path)
-                    # Enforce timestamp type on existing data too, just in case
+                    # Enforce timestamp type
                     if not pd.api.types.is_datetime64_any_dtype(existing["timestamp"]):
                         existing["timestamp"] = pd.to_datetime(existing["timestamp"], utc=True)
 
-                    df = (
-                        pd.concat([existing, df])
-                        .drop_duplicates(subset="timestamp")
-                        .sort_values("timestamp")
-                    )
+                    # Sanitize: Remove future data if any
+                    now_utc = pd.Timestamp.now(timezone.utc)
+                    existing = existing[existing["timestamp"] <= now_utc]
 
-                # Ensure numeric types for OHLCV to avoid pyarrow issues
-                cols = ["open", "high", "low", "close", "volume"]
-                for col in cols:
-                    if col in df.columns:
-                        df[col] = pd.to_numeric(df[col], errors="coerce")
+                    if not existing.empty:
+                        last_ts = existing["timestamp"].max()
+                        from_time = last_ts.isoformat()
+                        print(f"  ↻ Resuming {pair} {gran} from {from_time}")
+                except Exception as e:
+                    print(f"    ⚠ Error reading existing file: {e}. Starting fresh.")
+                    from_time = "2005-01-01T00:00:00Z"
+            else:
+                print(f"  ↓ Downloading {pair} {gran} from {from_time}...")
 
-                # Filter out future timestamps (e.g. from backtest leakage or OANDA glitches)
-                now_utc = pd.Timestamp.now(timezone.utc)
-                df = df[df["timestamp"] <= now_utc]
+            # Pagination Loop
+            total_downloaded = 0
+            while True:
+                try:
+                    candles = fetch_candles(client, pair, gran, from_time=from_time, count=5000)
+                    df = candles_to_dataframe(candles)
 
-                if df.empty:
-                    print("    ⚠ All data was future-dated. Skipping save.")
-                    continue
+                    if df.empty:
+                        print(f"    ✓ No more data for {pair} {gran}.")
+                        break
 
-                df.to_parquet(output_path, index=False)
-                prior_count = 0
-                if output_path.exists() and "existing" in locals():
-                    prior_count = len(existing)
-                new_count = len(df) - prior_count
-                print(
-                    f"    ✓ {len(df)} rows total | "
-                    f"{df['timestamp'].min()} → {df['timestamp'].max()}"
-                )
+                    df["timestamp"] = pd.to_datetime(df["timestamp"], utc=True)
 
-            except Exception as e:
-                print(f"    ❌ Error: {e}")
+                    # Filter out records <= from_time to avoid duplicates/infinite loop
+                    # OANDA 'from' is exclusive or inclusive? It seems inclusive sometimes.
+                    if from_time:
+                         df = df[df["timestamp"] > pd.Timestamp(from_time)]
+
+                    if df.empty:
+                        print("    ✓ Up to date.")
+                        break
+
+                    # Append to existing file on disk (read-modify-write pattern for simplicity)
+                    if output_path.exists():
+                        existing = pd.read_parquet(output_path)
+                        if not pd.api.types.is_datetime64_any_dtype(existing["timestamp"]):
+                            existing["timestamp"] = pd.to_datetime(existing["timestamp"], utc=True)
+
+                        df = (
+                            pd.concat([existing, df])
+                            .drop_duplicates(subset="timestamp")
+                            .sort_values("timestamp")
+                        )
+
+                    # Type conversion
+                    cols = ["open", "high", "low", "close", "volume"]
+                    for col in cols:
+                        if col in df.columns:
+                            df[col] = pd.to_numeric(df[col], errors="coerce")
+
+                    now_utc = pd.Timestamp.now(timezone.utc)
+                    df = df[df["timestamp"] <= now_utc]
+
+                    if df.empty:
+                         print("    ⚠ All fetched data was future-dated/filtered. Stop.")
+                         break
+
+                    df.to_parquet(output_path, index=False)
+
+
+                    last_ts = df["timestamp"].max()
+                    from_time = last_ts.isoformat()
+                    total_downloaded += len(candles)
+
+                    print(f"    → Saved {len(df)} rows total. Last: {last_ts}. (Batch: {len(candles)})")
+
+                    # If we got fewer than requested, we are likely at the end
+                    if len(candles) < 5000:
+                        print("    ✓ Reached end of stream.")
+                        break
+
+                except Exception as e:
+                    print(f"    ❌ Error: {e}")
+                    break
 
     print("\n✅ Data download complete.\n")
 

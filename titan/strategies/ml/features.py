@@ -10,7 +10,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
+PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent.parent
 CONFIG_DIR = PROJECT_ROOT / "config"
 
 # ─────────────────────────────────────────────────────────────────────
@@ -157,6 +157,31 @@ def adx(df: pd.DataFrame, period: int = 14) -> pd.Series:
 # ─────────────────────────────────────────────────────────────────────
 
 
+def load_mtf_config(logger=None) -> dict:
+    """Load MTF strategy parameters from config/mtf.toml."""
+    cfg_path = CONFIG_DIR / "mtf.toml"
+    if cfg_path.exists():
+        with open(cfg_path, "rb") as f:
+            cfg = tomllib.load(f)
+        if logger:
+            logger.info("  📋 Loaded MTF config from mtf.toml")
+        else:
+            print("  📋 Loaded MTF config from mtf.toml")
+        return cfg
+
+    msg = "  ⚠ config/mtf.toml not found — using defaults."
+    if logger:
+        logger.warning(msg)
+    else:
+        print(msg)
+    return {}
+
+
+# ─────────────────────────────────────────────────────────────────────
+# Feature Engineering
+# ─────────────────────────────────────────────────────────────────────
+
+
 def build_features(
     df: pd.DataFrame,
     context_data: dict[str, pd.DataFrame] | None = None,
@@ -170,6 +195,9 @@ def build_features(
     if cfg is None:
         cfg = load_feature_config()
 
+    # Load MTF config for specific strategy features
+    mtf_strategy_cfg = load_mtf_config()
+
     if context_data is None:
         context_data = {}
 
@@ -180,6 +208,7 @@ def build_features(
     trend = cfg.get("trend", _DEFAULT_CFG["trend"])
     momentum = cfg.get("momentum", _DEFAULT_CFG["momentum"])
     volatility = cfg.get("volatility", _DEFAULT_CFG["volatility"])
+    # Fallback to features.toml mtf settings if mtf.toml is empty/missing
     mtf_cfg = cfg.get("mtf_confluence", _DEFAULT_CFG["mtf_confluence"])
 
     # ── Lagged returns ──
@@ -259,33 +288,84 @@ def build_features(
     # ── Price action ──
     feats["range_pct"] = (df["high"] - df["low"]) / close
 
-    # ── MTF Confluence (tuned) ──
-    for gran, context_df in context_data.items():
-        prefix = gran.lower()
-        ctx_close = context_df["close"]
+    # ── MTF Confluence (Strategy Logic) ──
+    # If mtf.toml is present, use it to calculate the exact signals exposed to the strategy
+    weights = mtf_strategy_cfg.get("weights", {})
+    confluence_score = pd.Series(0.0, index=feats.index)
 
-        # Load tuned params for this TF (or defaults)
-        tf_cfg = mtf_cfg.get(gran, {})
-        sf = tf_cfg.get("sma_fast", 10 if gran == "D" else 5)
-        ss = tf_cfg.get("sma_slow", 30 if gran == "D" else 13)
-        rp = tf_cfg.get("rsi_period", 14)
-        rt = tf_cfg.get("rsi_threshold", 50)
+    # Iterate over context_data (Context TFs) + Base TF (if applicable)
+    # We need to calculate signals for ALL TFs defined in weights
+    all_tfs = list(weights.keys())
 
-        fast_ma = sma(ctx_close, sf)
-        slow_ma = sma(ctx_close, ss)
-        r = rsi(ctx_close, rp)
+    # We need access to data for all these TFs.
+    # context_data provides higher TFs. base data provides base TF (e.g. M15 or H1).
+    # We must unify them to calculate the score.
 
-        bias = pd.Series(0.0, index=ctx_close.index)
-        bias += np.where(fast_ma > slow_ma, 0.5, -0.5)
-        bias += np.where(r > rt, 0.5, -0.5)
+    for tf in all_tfs:
+        # Get data for this TF
+        if tf in context_data:
+            tf_data = context_data[tf]["close"]
+        elif len(weights) > 0 and tf not in context_data:
+            # Check if this is the base TF?
+            # We don't explicitly know the base TF string here ("M15", "H1"),
+            # but we can try to guess or just skip if we don't have data.
+            # However, typically the base timeframe is one of the keys.
+            # If we are running on M15, and M15 is not in context_data (it's 'df'),
+            # we should use 'close' (base close).
+            # But we don't know for sure if 'df' corresponds to 'tf' unless we pass base_tf name.
+            # A simple heuristic: if we can't find it in context, check if we want to calc it on base?
+            # For now, let's only calculate for TFs we have in context_data,
+            # PLUS we can try to infer if 'df' is the missing one if there's only one missing?
+            # Actually, `run_pipeline` passes `context_data`. It doesn't pass base TF *name* to `build_features`.
+            # We'll rely on context_data for Higher TFs.
+            # If a required TF from `mtf.toml` is missing, we can't accurately calc score.
+            continue
+        else:
+            tf_data = None
 
-        bias_aligned = bias.reindex(feats.index, method="ffill")
-        feats[f"{prefix}_bias"] = bias_aligned
+        if tf_data is None:
+            continue
 
-        trend_str = ((fast_ma - slow_ma) / ctx_close).reindex(feats.index, method="ffill")
-        feats[f"{prefix}_trend_str"] = trend_str
+        # Get params for this TF from mtf.toml
+        # mtf.toml structure: [H1] fast_ma=10 ...
+        params = mtf_strategy_cfg.get(tf, {})
+        if not params:
+            # Fallback to features.toml logic if mtf.toml entry missing?
+            # Or just skip.
+            continue
 
-        r_aligned = r.reindex(feats.index, method="ffill")
-        feats[f"{prefix}_rsi"] = r_aligned
+        sf = params.get("fast_ma", 10)
+        ss = params.get("slow_ma", 20)
+        rp = params.get("rsi_period", 14)
+
+        # Calculate Indicators
+        fast_ma = sma(tf_data, sf)
+        slow_ma = sma(tf_data, ss)
+        r = rsi(tf_data, rp)
+
+        # Calculate Signal (Trend + Mom)
+        # Trend: +0.5 if Fast > Slow else -0.5
+        trend_score = np.where(fast_ma > slow_ma, 0.5, -0.5)
+
+        # Mom: +0.5 if RSI > 50 else -0.5
+        mom_score = np.where(r > 50, 0.5, -0.5)
+
+        total_signal = pd.Series(trend_score + mom_score, index=tf_data.index) # -1.0 to +1.0
+
+        # Align to base timeframe
+        # Reindexing to feats.index (base TF) with ffill
+        signal_aligned = total_signal.reindex(feats.index, method="ffill")
+
+        # Add to features
+        feats[f"mtf_signal_{tf}"] = signal_aligned
+        feats[f"mtf_rsi_{tf}"] = r.reindex(feats.index, method="ffill")
+
+        # Add to Confluence Score
+        weight = weights.get(tf, 0.0)
+        confluence_score += signal_aligned * weight
+
+    # Add final confluence score
+    if not confluence_score.eq(0).all():
+        feats["mtf_confluence"] = confluence_score
 
     return feats

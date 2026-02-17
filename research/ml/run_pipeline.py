@@ -21,7 +21,7 @@ import joblib
 import numpy as np
 import pandas as pd
 
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
+PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
 DATA_DIR = PROJECT_ROOT / "data"
@@ -39,7 +39,7 @@ except ImportError:
     vbt = None
     print("  ⚠ vectorbt not installed — VBT backtest will be skipped.")
 
-from sklearn.ensemble import GradientBoostingClassifier, RandomForestClassifier  # noqa: E402
+from sklearn.ensemble import RandomForestClassifier  # noqa: E402
 
 try:
     import xgboost as xgb
@@ -121,18 +121,20 @@ def walk_forward_splits(n: int, n_splits: int = 5, min_train: float = 0.4):
 
 def train_and_evaluate(X: pd.DataFrame, y: pd.Series, close: pd.Series):
     """Train ML models with walk-forward CV and return the best one."""
+    from joblib import Parallel, delayed
+    from sklearn.base import clone
+    from sklearn.ensemble import HistGradientBoostingClassifier
     from sklearn.metrics import accuracy_score
 
     models = {
-        "GradientBoosting": GradientBoostingClassifier(
-            n_estimators=300,
-            max_depth=4,
+        "HistGradientBoosting": HistGradientBoostingClassifier(
+            max_iter=200,
+            max_depth=6,
             learning_rate=0.05,
-            subsample=0.8,
             random_state=42,
         ),
         "RandomForest": RandomForestClassifier(
-            n_estimators=300,
+            n_estimators=100,
             max_depth=8,
             min_samples_leaf=20,
             random_state=42,
@@ -151,49 +153,64 @@ def train_and_evaluate(X: pd.DataFrame, y: pd.Series, close: pd.Series):
             eval_metric="logloss",
             random_state=42,
             use_label_encoder=False,
+            n_jobs=-1,
         )
     else:
         print("  ⚠ XGBoost not installed — skipping.")
 
-    splits = walk_forward_splits(len(X), n_splits=5)
+    n_splits = 3
+    splits = walk_forward_splits(len(X), n_splits=n_splits)
     best_model = None
     best_name = ""
     best_sharpe = -np.inf
     results = {}
 
     print(f"\n  {'─' * 60}")
-    print(f"  [TRAIN] Training {len(models)} models × 5 walk-forward folds")
+    print(f"  [TRAIN] Training {len(models)} models × {n_splits} parallel folds")
     print(f"  {'─' * 60}\n")
 
+    def _train_fold(model_base, X, y, close, train_idx, test_idx):
+        """Helper to train one fold in parallel."""
+        # Clone to ensure fresh independent training
+        clf = clone(model_base)
+
+        X_tr, X_te = X.iloc[train_idx], X.iloc[test_idx]
+        y_tr, y_te = y.iloc[train_idx], y.iloc[test_idx]
+
+        clf.fit(X_tr, y_tr)
+        y_pred = clf.predict(X_te)
+
+        acc = accuracy_score(y_te, y_pred)
+
+        # Sharpe calc
+        pred_mapped = np.where(y_pred == 2, 1, np.where(y_pred == 0, -1, 0))
+        fwd_ret = close.pct_change().shift(-1).iloc[test_idx]
+        strat_ret = pd.Series(pred_mapped, index=fwd_ret.index) * fwd_ret
+
+        if strat_ret.std() > 0:
+            sharpe = float(strat_ret.mean() / strat_ret.std() * np.sqrt(252 * 6))
+        else:
+            sharpe = 0.0
+
+        return sharpe, acc, list(y_pred), list(y_te)
+
     for name, model in models.items():
-        fold_sharpes = []
-        fold_accs = []
+        # Run folds in parallel
+        # n_jobs=-1 uses all avail cores
+        fold_results = Parallel(n_jobs=-1)(
+            delayed(_train_fold)(model, X, y, close, tr, te)
+            for tr, te in splits
+        )
+
+        # Aggregation
+        fold_sharpes = [r[0] for r in fold_results]
+        fold_accs = [r[1] for r in fold_results]
+
         all_preds = []
         all_true = []
-
-        for fold_i, (train_idx, test_idx) in enumerate(splits):
-            X_tr, X_te = X.iloc[train_idx], X.iloc[test_idx]
-            y_tr, y_te = y.iloc[train_idx], y.iloc[test_idx]
-
-            model.fit(X_tr, y_tr)
-            y_pred = model.predict(X_te)
-
-            acc = accuracy_score(y_te, y_pred)
-            fold_accs.append(acc)
-
-            # Signal Sharpe: predicted direction × actual return
-            # Map back: 0 -> -1, 1 -> 0, 2 -> 1
-            pred_mapped = np.where(y_pred == 2, 1, np.where(y_pred == 0, -1, 0))
-            fwd_ret = close.pct_change().shift(-1).iloc[test_idx]
-            strat_ret = pd.Series(pred_mapped, index=fwd_ret.index) * fwd_ret
-            if strat_ret.std() > 0:
-                sharpe = float(strat_ret.mean() / strat_ret.std() * np.sqrt(252 * 6))
-            else:
-                sharpe = 0.0
-            fold_sharpes.append(sharpe)
-
-            all_preds.extend(y_pred)
-            all_true.extend(y_te)
+        for r in fold_results:
+            all_preds.extend(r[2])
+            all_true.extend(r[3])
 
         avg_sharpe = np.mean(fold_sharpes)
         avg_acc = np.mean(fold_accs)
@@ -417,7 +434,7 @@ def backtest_ml_predictions(
 # ─────────────────────────────────────────────────────────────────────
 
 
-def run_pipeline(base_tf: str = "H4"):
+def run_pipeline(base_tf: str = "H1"):
     """Run the full ML pipeline for a specific base timeframe."""
     print(f"\n{'=' * 60}")
     print(f"  [INFO] ML Strategy Discovery — EUR_USD {base_tf}")
@@ -438,15 +455,15 @@ def run_pipeline(base_tf: str = "H4"):
     # If H1, context is H4, D, W
     # If H4, context is D, W
     context_data = {}
-    possible_contexts = ["H4", "D", "W"]
+    possible_contexts = ["M15", "H1", "H4", "D", "W"]
 
     # Only load contexts that are higher than base_tf
-    # Simple hierarchy: H1 < H4 < D < W
-    hierarchy = {"H1": 0, "H4": 1, "D": 2, "W": 3}
+    # Simple hierarchy: M15 < H1 < H4 < D < W
+    hierarchy = {"M15": 0, "H1": 1, "H4": 2, "D": 3, "W": 4}
     base_rank = hierarchy.get(base_tf, 0)
 
     for tf in possible_contexts:
-        if hierarchy[tf] > base_rank:
+        if hierarchy.get(tf, -1) > base_rank:
             ctx_df = load_ohlcv("EUR_USD", tf)
             if ctx_df is not None:
                 context_data[tf] = ctx_df.sort_index()
@@ -462,6 +479,7 @@ def run_pipeline(base_tf: str = "H4"):
     # ── Step 3: Build target ──
     print("\n  Step 3: Engineering target (3-class: LONG/SHORT/FLAT)...")
     close = df["close"]
+
     atr_series = atr(df, 14)
     # Lower threshold to 0.5 ATR to catch more moves
     target = build_target(close, atr_series, tp_mult=0.5, sl_mult=0.5)
@@ -537,7 +555,7 @@ def run_pipeline(base_tf: str = "H4"):
 
 def main():
     # H1 tends to overfit (OOS Sharpe < 0), but kept for comparison.
-    target_timeframes = ["H4", "H1"]
+    target_timeframes = ["H1"]
     results = []
 
     for tf in target_timeframes:

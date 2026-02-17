@@ -76,7 +76,6 @@ pairs = [
 ]
 
 granularities = [
-    "M5",    # 5-minute candles (for MTF Strategy-5m)
     "H1",    # 1-hour candles (entry/exit timing)
     "H4",    # 4-hour candles (primary analysis)
     "D",     # Daily candles (trend confirmation)
