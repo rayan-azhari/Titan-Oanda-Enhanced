@@ -14,79 +14,75 @@ This document outlines the standard 3-Stage Optimization Process for Multi-Timef
 ---
 
 ## 🔄 Stage 1: Global Parameters (Regime & Sensitivity)
-**Objective:** Determine the best Moving Average type and the required "Conviction" (Threshold) for the strategy. These are the most impactful global variables.
+**Objective:** Determine the best Moving Average type and the required "Conviction" (Threshold).
 
-### Parameters to Sweep
+### Execution
+Run the Stage 1 sweeper:
+```bash
+uv run python research/mtf/run_optimisation.py
+```
+> **Auto-Save:** The best `MA_Type` and `Threshold` are automatically saved to `.tmp/mtf_state.json`.
+
+### Parameters Swept
 - **MA Type**: `SMA`, `EMA`, `WMA` (Applied to *all* timeframes).
 - **Confirmation Threshold**: `0.10` to `0.85` (Step 0.05).
-    - Determines how much consensus is needed (e.g., 0.55 means strong agreement).
 
-### Validation
-- **Metric**: Sharpe Ratio.
-- **Stability Check**: `Parity = OOS Sharpe / IS Sharpe`.
-- **Selection Criteria**:
-    1.  Filter for `Parity > 0.5` (OOS performance retains at least 50% of IS).
-    2.  Select configuration with the highest **IS Sharpe** from the stable set.
-
-**Outcome:** Fixed `MA_Type` (e.g., WMA) and `Threshold` (e.g., 0.55) for subsequent stages.
+### Output
+- **Console**: prints the Best Parameter Set (e.g., `WMA`, `0.55`).
+- **Report**: `.tmp/reports/mtf_stage1_scoreboard.csv`
+- **Action**: Update `mtf_strategy_5m_stage2.py` with these winning values before proceeding.
 
 ---
 
 ## ⚖️ Stage 2: Timeframe Weights (Structure)
 **Objective:** Determine the optimal balance of influence between timeframes (e.g., "Is this a D1 trend strategy or an H1 tactical strategy?").
 
-### Parameters to Sweep
-- **Weights**: Combinations of M5, H1, H4, D1 (or relevant TFs).
-    - *Examples*:
-        - **Balanced**: `[0.25, 0.25, 0.25, 0.25]`
-        - **Trend Dominant**: `[0.05, 0.15, 0.30, 0.50]`
-        - **Tactical**: `[0.10, 0.40, 0.30, 0.20]`
-        - **Fast Scalp**: `[0.40, 0.30, 0.20, 0.10]`
+### Execution
+Run the Stage 2 sweeper:
+```bash
+uv run python research/mtf/mtf_strategy_5m_stage2.py
+```
+> **Auto-Load:** Automatically loads `MA_Type` and `Threshold` from Stage 1 (if available).
+> **Auto-Save:** Saves the winning `Weights` to `.tmp/mtf_state.json`.
 
-### Constraints
-- **Fixed**: `MA_Type` and `Threshold` from Stage 1.
+### Parameters Swept
+- **Weights**: Grid search of heuristic weight distributions (e.g., Balanced `[0.25, 0.25...]` vs Trend `[0.05, 0.15, 0.30, 0.50]`).
+- **Fixed**: `MA_Type` and `Threshold` (from Stage 1).
 
-### Validation
-- **Metric**: Sharpe Ratio & Parity.
-- **Selection Criteria**:
-    - High Stability (Parity).
-    - Robustness across multiple weight profiles is a good sign.
-    - Pick the profile that aligns with the desired trade frequency and stability.
-
-**Outcome:** Fixed `Weights` (e.g., `[0.1, 0.3, 0.3, 0.3]`).
+### Output
+- **Console**: prints the Best Weight Config (e.g., `Balanced Higher`).
+- **Report**: `.tmp/reports/mtf_stage2_weights.csv`
+- **Action**: Update `mtf_strategy_5m_stage3.py` with these winning weights.
 
 ---
 
 ## 🎯 Stage 3: Indicator Tuning (Fine-Grained)
 **Objective:** Tune specific indicator periods (`fast_ma`, `slow_ma`, `rsi_period`) for each timeframe individually.
 
+### Execution
+Run the Stage 3 sweeper:
+```bash
+uv run python research/mtf/mtf_strategy_5m_stage3.py
+```
+> **Auto-Load:** Loads global params (Stage 1) and weights (Stage 2).
+> **Auto-Save:** Saves the detailed indicator configuration.
+
 ### Strategy: Greedy Optimization
-To avoid combinatorial explosion (tuning 3 params × 4 TFs = 12 dimensions simultaneously), we use a **Greedy** approach based on weight importance.
+To avoid combinatorial explosion, we optimize timeframes one by one in order of importance:
+**Order:** `H4` → `H1` → `M5` → `D`
 
-**Order:** `Dominant TF` → `Secondary TF` → `...` → `Least Impactful TF`.
-*(Example for H4/D1 heavy strategy: H4 → H1 → M5 → D)*
+1.  **Optimize H4**: Sweep params, keeping others default. Lock best H4 params.
+2.  **Optimize H1**: Sweep params, keeping H4 fixed (optimized). Lock best H1 params.
+3.  **Repeat**: For M5 and D1.
 
-### Execution Loop
-1.  **Optimize TF #1 (e.g., H4)**:
-    - Sweep `fast_ma` (e.g., 10-30), `slow_ma` (e.g., 40-60), `rsi_period` (10-20).
-    - **Keep all other TFs at default.**
-    - Select best params (IS/OOS validated).
-    - **Lock** these parameters for H4.
-2.  **Optimize TF #2 (e.g., H1)**:
-    - Sweep params for H1.
-    - **H4 is fixed to optimized values.** Others are default.
-    - Select and **Lock** H1 params.
-3.  **Repeat** for remaining TFs.
-
-### Validation
-- **Check**: Does tuning actually improve over the baseline? If the improvement is marginal (< 5%), prefer **Defaults** (Robustness > Fitting).
+### Output
+- **Console**: prints final optimized parameters for all timeframes.
+- **Report**: `.tmp/reports/mtf_stage3_params.csv`
 
 ---
 
-## ✅ Final Output
-A fully specified `config.toml` containing:
-1.  Global `MA_Type` & `Threshold`.
-2.  Specific `Weights`.
-3.  Per-Timeframe `Fast`, `Slow`, `RSI` settings.
+## ✅ Next Step: Deployment
+Once you have the final configuration from Stage 3:
+1.  Update `config/mtf.toml` with the optimized values.
+2.  Proceed to **[Strategy Deployment Protocol](Strategy%20Deployment%20Protocol.md)** to go live.
 
-This configuration is then ready for live deployment.

@@ -434,6 +434,17 @@ def main() -> None:
     except ImportError:
         print("\nPlotly not installed — skipping heatmap.")
 
+    # ── Save to State Manager ──
+    try:
+        import research.mtf.state_manager as state_manager
+
+        state_manager.save_stage1(
+            ma_type=best["ma_type"],
+            threshold=float(best["threshold"]),
+        )
+    except ImportError:
+        print("WARNING: Could not import state_manager. State not saved.")
+
     print("\nDone.")
 
 

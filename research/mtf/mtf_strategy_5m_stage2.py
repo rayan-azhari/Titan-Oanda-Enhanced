@@ -117,12 +117,26 @@ def run_stage2_optimization(pair: str = "EUR_USD") -> None:
     is_close = m5["close"].iloc[:split_idx]
     oos_close = m5["close"].iloc[split_idx:]
 
-    # Fixed Parameters from Stage 1
+    # Fixed Parameters (Load from State or Default)
     MA_TYPE = "WMA"
     THRESHOLD = 0.55
-    FAST_MA, SLOW_MA, RSI_PERIOD = 20, 50, 14
 
-    print(f"Fixed Params: MA={MA_TYPE}, Threshold={THRESHOLD}")
+    try:
+        import research.mtf.state_manager as state_manager
+
+        s1 = state_manager.get_stage1()
+        if s1:
+            MA_TYPE, THRESHOLD = s1
+            print(f"Loaded Stage 1 State: MA={MA_TYPE}, Threshold={THRESHOLD}")
+        else:
+            print(f"No Stage 1 State found. Using defaults: MA={MA_TYPE}, Threshold={THRESHOLD}")
+    except ImportError:
+        print("Could not import state_manager. Using defaults.")
+
+    print(f"Active Params: MA={MA_TYPE}, Threshold={THRESHOLD}")
+
+    # Default Indicator Params (Fixed for Stage 2)
+    FAST_MA, SLOW_MA, RSI_PERIOD = 20, 50, 14
 
     # Pre-calculate signals (expensive part done once)
     print("Calculating signals...")
@@ -230,6 +244,27 @@ def run_stage2_optimization(pair: str = "EUR_USD") -> None:
         print(f"   Weights: {best['Weights']}")
         print(f"   IS Sharpe: {best['is_sharpe']:.2f}")
         print(f"   OOS Sharpe: {best['oos_sharpe']:.2f}")
+
+        # Save to State
+        try:
+            # Parse weights string back to dict or list?
+            # The weights string is like "[0.1, 0.3, ...]"
+            # We need to map it back to TFs: M5, H1, H4, D1
+            # For now, let's just save the raw list or a dict if we can infer order
+            # The combo list was: w_m5, w_h1, w_h4, w_d1
+            import ast
+
+            w_list = ast.literal_eval(best["Weights"])
+            best_weights = {
+                "M5": w_list[0],
+                "H1": w_list[1],
+                "H4": w_list[2],
+                "D": w_list[3],
+            }
+            state_manager.save_stage2(best_weights)
+        except Exception as e:
+            print(f"Error saving state: {e}")
+
     else:
         print("\n⚠️ No candidates passed parity check > 0.5")
 

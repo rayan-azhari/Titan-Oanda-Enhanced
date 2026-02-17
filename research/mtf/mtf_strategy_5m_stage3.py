@@ -115,11 +115,25 @@ def run_stage3_optimization(pair: str = "EUR_USD") -> None:
     is_close = m5["close"].iloc[:split_idx]
     oos_close = m5["close"].iloc[split_idx:]
 
-    # --- 2. Fixed Constants (Stage 1 & 2) ---
+    # --- 2. Fixed Constants (Load from State) ---
     MA_TYPE = "WMA"
     THRESHOLD = 0.55
-    # Weights: M5, H1, H4, D1 (Balanced Higher)
     WEIGHTS = {"M5": 0.1, "H1": 0.3, "H4": 0.3, "D": 0.3}
+
+    try:
+        import research.mtf.state_manager as state_manager
+
+        s1 = state_manager.get_stage1()
+        if s1:
+            MA_TYPE, THRESHOLD = s1
+            print(f"Loaded Stage 1: MA={MA_TYPE}, Threshold={THRESHOLD}")
+
+        s2 = state_manager.get_stage2()
+        if s2:
+            WEIGHTS = s2
+            print(f"Loaded Stage 2 Weights: {WEIGHTS}")
+    except ImportError:
+        print("Could not import state_manager. Using defaults.")
 
     # Defaults
     current_params = {
@@ -227,6 +241,13 @@ def run_stage3_optimization(pair: str = "EUR_USD") -> None:
     csv_path = REPORTS_DIR / "mtf_stage3_params.csv"
     df.to_csv(csv_path, index=False)
     print(f"\nSaved to {csv_path}")
+
+    # Save Final State
+    try:
+        state_manager.save_stage3(current_params)
+        print("✅ Final Configuration Saved to State.")
+    except Exception:
+        pass
 
 
 if __name__ == "__main__":
