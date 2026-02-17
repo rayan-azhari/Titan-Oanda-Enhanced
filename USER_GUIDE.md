@@ -350,6 +350,27 @@ uv run python scripts/kill_switch.py
 
 ---
 
+## ⚕️ Phase 6: Health Checks & Maintenance
+
+Before you go live, or if you suspect something is wrong, run the **System Stress Test**.
+
+**The Command:**
+```bash
+uv run python scripts/stress_test_oanda.py
+```
+
+**What it does:**
+1.  **Market Order Test:** Places and immediately closes a trade.
+2.  **Pending Order Test:** Places Limits and Stops, then cancels them.
+3.  **Burst Test:** Fires 5 orders rapidly to test rate limits.
+4.  **Integration Check:** Verifies the entire pipeline (Auth -> Network -> Adapter -> OANDA).
+
+**Success Criteria:**
+- You see `✅ STRESS TEST COMPLETE`.
+- No "Order Not Found" errors.
+
+---
+
 ## � Optional: Set Up Slack Alerts
 
 Want the bot to message you when it trades?
@@ -481,6 +502,12 @@ A: This usually means the `account_id` wasn't set correctly in the Execution Cli
 
 **Q: "LiveExecutionClient: No account found for ID..."**
 A: This means the `AccountState` event wasn't received before the strategy started. We fixed this by ensuring `_connect()` awaits the initial account state update. If it persists, restart the script.
+
+**Q: "NotImplementedError: method `generate_order_status_reports`..."**
+A: **Fixed in v1.1.** This error meant the adapter couldn't handle single-order queries. Update your `titan` package (`uv pip install -e .`) to get the fix.
+
+**Q: "Trade ID Unspecified" (Trailing Stop Rejection)**
+A: OANDA requires Trailing Stops to be linked to an existing Trade ID. The current adapter doesn't support this automatically. Use standard Stop Loss orders managed by your strategy logic instead.
 
 **Q: "TypeError: Argument 'account_id' has incorrect type"**
 A: You are passing a string (e.g., "001") where a `AccountId` object is expected. Use `self.cache.accounts()[0]` to get the valid account object dynamically.

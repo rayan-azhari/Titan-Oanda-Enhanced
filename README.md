@@ -36,7 +36,8 @@ This project follows a **3-layer architecture** that separates *Probabilistic In
 ├── Titan Workspace Rules.md       ← Technical & ML constraints
 ├── directives/                    ← SOPs
 │   ├── Titan Library Reference.md      ← [API DOCS] Detailed Package Guide
-│   ├── Workspace Structure.md          ← (New) File Layout Docs
+│   ├── Titan-Oanda Adapter Guide.md    ← [NEW] Architecture & Usage Guide
+│   ├── Workspace Structure.md          ← File Layout Docs
 │   ├── Alpha Research Loop (VectorBT).md
 │   ├── ... (and other directives)
 ├── titan/                         ← [CORE] Package (Library Code)

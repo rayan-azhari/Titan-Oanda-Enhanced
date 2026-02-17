@@ -33,7 +33,7 @@ from nautilus_trader.model.enums import (
     PositionSide,
     TimeInForce,
 )
-from nautilus_trader.model.events import AccountState, OrderCanceled, OrderFilled
+from nautilus_trader.model.events import AccountState, OrderAccepted, OrderCanceled, OrderFilled
 from nautilus_trader.model.identifiers import (
     AccountId,
     ClientId,
@@ -43,7 +43,13 @@ from nautilus_trader.model.identifiers import (
     VenueOrderId,
 )
 from nautilus_trader.model.objects import AccountBalance, Currency, Money, Price, Quantity
-from nautilus_trader.model.orders import LimitOrder, Order
+from nautilus_trader.model.orders import (
+    LimitOrder,
+    MarketIfTouchedOrder,
+    Order,
+    StopMarketOrder,
+    TrailingStopMarketOrder,
+)
 
 from .config import OandaExecutionClientConfig
 from .parsing import parse_datetime, parse_instrument_id
@@ -270,12 +276,71 @@ class OandaExecutionClient(LiveExecutionClient):
             elif event_type == "ORDER_CANCEL":
                 self._handle_cancel(data, client_order_id, venue_order_id)
             elif event_type == "ORDER_CREATE":
-                self._log.info(
-                    f"Order created on OANDA: {venue_order_id} (client: {client_order_id})"
-                )
+                self._handle_create(data, client_order_id, venue_order_id)
 
         except Exception as e:
             self._log.error(f"Error handling event: {e}")
+
+    def _handle_create(
+        self, data: dict, client_order_id: ClientOrderId, venue_order_id: VenueOrderId
+    ) -> None:
+        """Handle OANDA ORDER_CREATE event (OrderAccepted)."""
+        timestamp = parse_datetime(data.get("time", ""))
+
+        # OANDA sends ORDER_CREATE for all orders, including Market.
+        # But Market orders usually immediately follow with ORDER_FILL.
+        # For Limit/Stop, this is the "Accepted" state.
+
+        accepted = OrderAccepted(
+            trader_id=self.trader_id,
+            strategy_id=None,  # strategy_id is tricky to get here if not cached?
+            # Actually OrderAccepted usually doesn't need strategy_id strictly
+            # if the ExecEngine matches it by ClientOrderId.
+            # But let's check signatures.
+            instrument_id=parse_instrument_id(data.get("instrument", "")),
+            client_order_id=client_order_id,
+            venue_order_id=venue_order_id,
+            account_id=self._account_id,  # Actually AccountId object needed.
+            # The class has self._account_id as string?
+            # Let's check imports. AccountId(f"OANDA-{self._account_id}")
+            ts_event=timestamp.value,
+            ts_init=self._clock.timestamp_ns(),
+        )
+        # We need to construct OrderAccepted correctly.
+        # OrderAccepted signature:
+        # (trader_id, strategy_id, instrument_id, client_order_id, venue_order_id, account_id...)
+
+        # Wait, strategy_id IS required.
+        # But the adapter might not know it.
+        # Nautilus ExecutionClient `_publish_order_accepted` helper? No, we publish via msgbus.
+        # However, the `ExecEngine` uses `client_order_id` to look up the order?
+        # Only if we use specific `ExecEngine` methods.
+        # If we send raw event, we need correct data.
+        # But we don't have strategy_id here easily without a lookup.
+        # Actually `OrderAccepted` DOES NOT require `strategy_id` in some versions?
+        # Let's check `OrderAccepted` signature or usage in other adapters perfectly.
+        # But wait, looking at `OrderCanceled` usage in this file (line 354):
+        # strategy_id=order.strategy_id
+        # It looks up `order` from `self._cache`.
+
+        order = self._cache.order(client_order_id)
+        if not order:
+            self._log.warning(f"Received ORDER_CREATE for unknown order {client_order_id}")
+            return
+
+        accepted = OrderAccepted(
+            trader_id=self.trader_id,
+            strategy_id=order.strategy_id,
+            instrument_id=order.instrument_id,
+            client_order_id=client_order_id,
+            venue_order_id=venue_order_id,
+            account_id=AccountId(f"OANDA-{self._account_id}"),
+            event_id=UUID4(),
+            ts_event=timestamp.value,
+            ts_init=self._clock.timestamp_ns(),
+        )
+        self._msgbus.send(endpoint="ExecEngine.process", msg=accepted)
+        self._log.info(f"Order ACCEPTED: {client_order_id} -> {venue_order_id}")
 
     def _handle_fill(
         self, data: dict, client_order_id: ClientOrderId, venue_order_id: VenueOrderId
@@ -350,6 +415,7 @@ class OandaExecutionClient(LiveExecutionClient):
             client_order_id=client_order_id,
             venue_order_id=venue_order_id,
             account_id=AccountId(f"OANDA-{self._account_id}"),
+            event_id=UUID4(),
             ts_event=timestamp.value,
             ts_init=self._clock.timestamp_ns(),
         )
@@ -366,6 +432,7 @@ class OandaExecutionClient(LiveExecutionClient):
     async def _submit_order_async(self, order: Order):
         # 1. Map Nautilus Order to OANDA dict
         data = self._map_order(order)
+        self._log.info(f"Submitting Order Payload: {data}")
 
         # 2. Send request
         r = orders.OrderCreate(self._account_id, data=data)
@@ -376,8 +443,34 @@ class OandaExecutionClient(LiveExecutionClient):
             # the entire trading node.
             response = await self._loop.run_in_executor(None, lambda: self._api.request(r))
             self._log.info(f"Order submitted: {response}")
-            # Note: NautilusTrader core usually generates the OrderSubmitted event
-            # upon successful return from this method.
+
+            # Extract Venue Order ID immediately from response
+            # Prefer orderCreateTransaction (Pending/New), fallback to orderFillTransaction
+            txn = response.get("orderCreateTransaction") or response.get("orderFillTransaction")
+
+            if txn:
+                venue_order_id = VenueOrderId(str(txn.get("id")))
+
+                # Fire OrderAccepted manually to set venue_order_id on the order in cache
+                accepted = OrderAccepted(
+                    trader_id=self.trader_id,
+                    strategy_id=order.strategy_id,
+                    instrument_id=order.instrument_id,
+                    client_order_id=order.client_order_id,
+                    venue_order_id=venue_order_id,
+                    account_id=AccountId(f"OANDA-{self._account_id}"),
+                    event_id=UUID4(),
+                    ts_event=parse_datetime(txn.get("time")).value,
+                    ts_init=self._clock.timestamp_ns(),
+                )
+                self._msgbus.send(endpoint="ExecEngine.process", msg=accepted)
+                self._log.info(
+                    f"Order ACCEPTED (REST): {order.client_order_id} -> {venue_order_id}"
+                )
+            else:
+                self._log.warning(
+                    f"Order submitted but no transaction ID found in response: {response}"
+                )
 
         except Exception as e:
             self._log.error(f"Order submission failed: {e}")
@@ -405,9 +498,31 @@ class OandaExecutionClient(LiveExecutionClient):
 
         order_type = "MARKET"
         price = None
+        trailing_dist = None
+
+        # Mapping Nautilus Order Types to OANDA V20
         if isinstance(order, LimitOrder):
             order_type = "LIMIT"
             price = f"{order.price}"
+        elif isinstance(order, StopMarketOrder):
+            order_type = "STOP"
+            price = f"{order.trigger_price}"
+        elif isinstance(order, MarketIfTouchedOrder):
+            order_type = "MARKET_IF_TOUCHED"
+            price = f"{order.trigger_price}"
+        elif isinstance(order, TrailingStopMarketOrder):
+            order_type = "TRAILING_STOP_LOSS"
+            # TrailingStopMarketOrder has 'trailing_offset' usually (Price or Quantity?)
+            # OANDA expects 'distance'
+            # Nautilus TrailingStopMarketOrder usually has trailing_amount or similar.
+            # Let's assume trailing_amount for now, or check attributes.
+            # If it's offset, it's a Price/scalar.
+            # Check if order has 'trailing_offset' if not 'trailing_amount'
+            dist = getattr(order, "trailing_amount", None) or getattr(
+                order, "trailing_offset", None
+            )
+            if dist:
+                trailing_dist = f"{dist}"
 
         data = {
             "order": {
@@ -424,9 +539,16 @@ class OandaExecutionClient(LiveExecutionClient):
             }
         }
 
+        if trailing_dist:
+            data["order"]["distance"] = trailing_dist
+
         if price:
             data["order"]["price"] = price
-            data["order"]["timeInForce"] = "GTC"  # Limit orders usually GTC
+            data["order"]["timeInForce"] = "GTC"  # Pending orders usually GTC
+        elif order_type == "TRAILING_STOP_LOSS":
+            data["order"]["timeInForce"] = "GTC"
+        else:
+            data["order"]["timeInForce"] = "FOK"  # Market orders FOK
 
         return data
 
@@ -464,6 +586,19 @@ class OandaExecutionClient(LiveExecutionClient):
         # Kept for compatibility if called, but relying on AccountState for registration.
         # Returning empty list to avoid import errors if AccountStatusReport is removed/missing.
         return []
+
+    async def generate_order_status_report(self, command) -> OrderStatusReport | None:
+        """Fetch a single order and generate status report."""
+        # command is QueryOrder(client_order_id, venue_order_id, ...)
+        if not command.venue_order_id:
+            return None
+
+        reports = await self.generate_order_status_reports(None)
+        # Filter for the specific order
+        for report in reports:
+            if report.venue_order_id == command.venue_order_id:
+                return report
+        return None
 
     async def generate_order_status_reports(self, command) -> list[OrderStatusReport]:
         """Fetch open orders and generate status reports (Reconciliation)."""
