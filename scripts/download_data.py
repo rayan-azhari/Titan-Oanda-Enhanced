@@ -61,18 +61,10 @@ def main() -> None:
     args = parser.parse_args()
 
     if args.instrument:
-        if args.instrument in pairs:
-            pairs = [args.instrument]
-        else:
-            print(f"⚠ Warning: {args.instrument} not found in config. Using all pairs.")
-            # Or exit? Let's just warn and proceed with all, or exit?
-            # Better to be strict: if user asks for X and it's not in config, maybe they meant X is valid but not in config?
-            # Actually, config defines granularities too. Let's just filter list if it exists, or add it if valid?
-            # Simplest: Filter existing list.
-            if args.instrument not in pairs:
-                print(f"❌ Error: Instrument {args.instrument} not in instruments.toml")
-                sys.exit(1)
-            pairs = [args.instrument]
+        if args.instrument not in pairs:
+            print(f"❌ Error: Instrument {args.instrument} not in instruments.toml")
+            sys.exit(1)
+        pairs = [args.instrument]
 
     if args.granularity:
         if args.granularity in granularities:
