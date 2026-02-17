@@ -50,7 +50,8 @@ ignore = [
 "tests/*" = ["E402", "D"]           # Tests: allow late imports, skip docstring rules
 "execution/*.py" = ["E402"]         # Scripts need sys.path/dotenv before imports
 "scripts/*" = ["E402", "D"]         # Standalone scripts: allow sys.path, skip docstrings
-"strategies/*" = ["D"]              # Strategy files: skip docstring rules
+"titan/strategies/**/*" = ["D"]       # Strategy files: skip docstring rules
+"titan/adapters/oanda/execution.py" = ["E402"] # Allow late imports if needed
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"

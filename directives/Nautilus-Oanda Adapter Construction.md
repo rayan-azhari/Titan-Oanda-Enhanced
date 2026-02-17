@@ -28,9 +28,14 @@ The adapter connects NautilusTrader's abstract interfaces to OANDA's v20 REST an
 - **Constraint:** Uses `oandapyV20` for connection handling to maximize compatibility.
 
 ### Phase 3 — Execution Logic (`execution.py`)
-- Handles order submission via `LiveExecutionClient`.
-- Maps Nautilus `Order` objects to OANDA JSON payload.
-- Listens to the **Transactions Stream** for execution reports (fills, cancels).
+- **OMS Type:** Strict requirement for `OmsType.NETTING` to match OANDA's accounting (no distinct position IDs per trade).
+- **Connection & Reconciliation:**
+    - `_connect()` awaits `_update_account_state()` (emitting `AccountState`) and `_update_positions_state()` **before** starting the transaction stream to prevent "No account found" errors.
+    - `AccountState` is constructed with `reported=True` and strict `free = total - locked` validation.
+- **Event Handling:**
+    - Listens to OANDA's **Transactions Stream**.
+    - `_handle_event` dispatches `ORDER_FILL`, `ORDER_CANCEL`, etc.
+    - Maps OANDA `ORDER_FILL` events to Nautilus `OrderFilled` events using `ClientOrderId` for reconciliation.
 
 ### Phase 4 — Integration (`run_nautilus_live.py`)
 - New entry point `scripts/run_live_ml.py`.

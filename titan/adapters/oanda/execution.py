@@ -5,10 +5,13 @@ Execution client for OANDA (orders & positions).
 """
 
 import asyncio
+import sys
+import traceback
 from decimal import Decimal
 from typing import Optional
 
 import oandapyV20
+import oandapyV20.endpoints.accounts as accounts
 import oandapyV20.endpoints.orders as orders
 import oandapyV20.endpoints.positions as positions
 import oandapyV20.endpoints.transactions as transactions
@@ -30,17 +33,16 @@ from nautilus_trader.model.enums import (
     PositionSide,
     TimeInForce,
 )
-from nautilus_trader.model.events import OrderCanceled, OrderFilled
+from nautilus_trader.model.events import AccountState, OrderCanceled, OrderFilled
 from nautilus_trader.model.identifiers import (
     AccountId,
     ClientId,
     ClientOrderId,
-    PositionId,
     TradeId,
     Venue,
     VenueOrderId,
 )
-from nautilus_trader.model.objects import Currency, Money, Price, Quantity
+from nautilus_trader.model.objects import AccountBalance, Currency, Money, Price, Quantity
 from nautilus_trader.model.orders import LimitOrder, Order
 
 from .config import OandaExecutionClientConfig
@@ -88,12 +90,87 @@ class OandaExecutionClient(LiveExecutionClient):
     def account_id(self) -> AccountId:
         return AccountId(f"OANDA-{self._account_id}")
 
-    def connect(self):
-        """Connect to OANDA transactions stream."""
-        if self._stream_task:
-            return
-        self._stream_task = self._loop.create_task(self._stream_transactions())
-        self._set_connected(True)
+    async def _connect(self) -> None:
+        """Connect to OANDA transaction stream and initialize account state."""
+        try:
+            self._log.info("Connecting to OANDA and initializing account state...")
+
+            # 1. Fetch and send initial AccountState
+            await self._update_account_state()
+
+            # 2. Fetch and send initial Position Status (Reconciliation)
+            await self._update_positions_state()
+
+            # 3. Start streaming (Non-blocking: create background task)
+            self._log.info("OANDA transaction stream starting...")
+            self._stream_task = self._loop.create_task(self._stream_transactions())
+
+        except Exception as e:
+            self._log.error(f"Connection failed: {e}")
+            raise
+
+    # ... (other methods) ...
+
+    async def _update_account_state(self):
+        """Fetch account summary and emit AccountState event."""
+        try:
+            self._log.info("Requesting AccountSummary for AccountState...")
+            r = accounts.AccountSummary(self._account_id)
+            await self._loop.run_in_executor(None, lambda: self._api.request(r))
+
+            data = r.response.get("account", {})
+
+            # Extract account details
+            currency_str = data.get("currency", "USD")
+            base_currency = Currency.from_str(currency_str)
+            balance_val = Decimal(data.get("balance", "0"))
+            margin_used = Decimal(data.get("marginUsed", "0"))
+
+            # OANDA's marginAvailable might slightly differ from (Balance - MarginUsed) due to PL
+            # or other factors. Nautilus requires strict `total == free + locked`.
+            # So we derive free from the other two authoritative values.
+            # margin_available = Decimal(data.get("marginAvailable", "0"))
+            free_calculated = balance_val - margin_used
+
+            balance = AccountBalance(
+                total=Money(balance_val, base_currency),
+                free=Money(free_calculated, base_currency),
+                locked=Money(margin_used, base_currency),
+            )
+
+            state = AccountState(
+                account_id=AccountId(f"OANDA-{self._account_id}"),
+                account_type=AccountType.MARGIN,
+                base_currency=base_currency,
+                reported=True,
+                balances=[balance],
+                margins=[],  # No specific margin objects for now
+                info={},
+                event_id=UUID4(),
+                ts_event=self._clock.timestamp_ns(),
+                ts_init=self._clock.timestamp_ns(),
+            )
+
+            self._send_account_state(state)
+            self._log.info("AccountState sent successfully.")
+
+        except Exception as e:
+            self._log.error(f"Failed to update account state: {e}")
+            sys.stderr.write(f"ERROR: Failed to update account state: {e}\n")
+            traceback.print_exc()
+
+    async def _update_positions_state(self):
+        """Fetch and emit initial position state."""
+        try:
+            self._log.info("Reconciling initial positions...")
+            # Reuse the generation logic
+            reports = await self.generate_position_status_reports(None)
+            for report in reports:
+                self._send_position_status_report(report)
+            self._log.info(f"Reconciled {len(reports)} positions.")
+        except Exception as e:
+            self._log.error(f"Initial position reconciliation failed: {e}")
+            # Don't fail connection just because of this, but log it
 
     def disconnect(self):
         """Disconnect from OANDA stream."""
@@ -111,19 +188,36 @@ class OandaExecutionClient(LiveExecutionClient):
     async def _stream_transactions(self):
         """Stream transaction events (fills, cancels)."""
         try:
-            print("DEBUG: _stream_transactions STARTING", flush=True)
+            with open("oanda_debug.log", "a") as f:
+                f.write("DEBUG: _stream_transactions STARTING\n")
             r = transactions.TransactionsStream(accountID=self._account_id)
             await self._loop.run_in_executor(None, self._consume_stream, r)
         except Exception as e:
-            print(f"DEBUG: _stream_transactions ERROR: {e}", flush=True)
+            with open("oanda_debug.log", "a") as f:
+                f.write(f"DEBUG: _stream_transactions ERROR: {e}\n")
             self._log.error(f"Transaction stream error: {e}")
 
     def _consume_stream(self, request):
         """Blocking loop to consume transactions."""
         try:
             for line in self._api.request(request):
-                if line["type"] in ("ORDER_FILL", "ORDER_CANCEL", "ORDER_CREATE"):
-                     self._loop.call_soon_threadsafe(self._handle_event, line)
+                # Log everything for debug
+                if "type" in line:
+                    # self._log.info(f"STREAM EVENT: {line['type']} - {line.get('id', '')}")
+                    pass
+
+                if line.get("type") == "HEARTBEAT":
+                    continue
+
+                self._log.info(f"RAW STREAM DATA: {line}")  # Temporary Debug
+
+                if line.get("type") in (
+                    "ORDER_FILL",
+                    "ORDER_CANCEL",
+                    "ORDER_CREATE",
+                    "ORDER_CLIENT_EXTENSIONS_MODIFY",
+                ):
+                    self._loop.call_soon_threadsafe(self._handle_event, line)
         except Exception as e:
             self._log.error(f"Transaction stream failed: {e}")
 
@@ -141,7 +235,9 @@ class OandaExecutionClient(LiveExecutionClient):
         try:
             event_type = data.get("type", "")
             transaction_id = data.get("id", "unknown")
-            
+
+            self._log.info(f"Processing Event: {event_type} {transaction_id}")
+
             # Extract the Nautilus ClientOrderId
             # 1. Try clientExtensions (common for OrderSubmit/Cancel)
             client_ext = data.get("clientExtensions", {})
@@ -150,14 +246,21 @@ class OandaExecutionClient(LiveExecutionClient):
             # 2. Try clientOrderID (common for OrderFill)
             if not client_order_id_str:
                 client_order_id_str = data.get("clientOrderID")
-            
+
+            # 3. For OrderCancel, sometimes it's in 'orderID' related fields? Check Logic.
+
             if not client_order_id_str:
+                self._log.warning(
+                    f"Event {event_type} {transaction_id} missing clientExtensions/clientOrderID"
+                )
                 return
 
             try:
                 client_order_id = ClientOrderId(client_order_id_str)
             except Exception as e:
-                self._log.warning(f"Failed to create ClientOrderId from '{client_order_id_str}': {e}")
+                self._log.warning(
+                    f"Failed to create ClientOrderId from '{client_order_id_str}': {e}"
+                )
                 return
 
             venue_order_id = VenueOrderId(str(data.get("orderID", transaction_id)))
@@ -167,7 +270,9 @@ class OandaExecutionClient(LiveExecutionClient):
             elif event_type == "ORDER_CANCEL":
                 self._handle_cancel(data, client_order_id, venue_order_id)
             elif event_type == "ORDER_CREATE":
-                self._log.info(f"Order created on OANDA: {venue_order_id} (client: {client_order_id})")
+                self._log.info(
+                    f"Order created on OANDA: {venue_order_id} (client: {client_order_id})"
+                )
 
         except Exception as e:
             self._log.error(f"Error handling event: {e}")
@@ -175,23 +280,13 @@ class OandaExecutionClient(LiveExecutionClient):
     def _handle_fill(
         self, data: dict, client_order_id: ClientOrderId, venue_order_id: VenueOrderId
     ) -> None:
-        """Map an OANDA ORDER_FILL to a Nautilus OrderFilled event.
-
-        Args:
-            data: Raw OANDA fill transaction dict.
-            client_order_id: Mapped Nautilus client order ID.
-            venue_order_id: OANDA-side order ID.
-        """
+        """Map an OANDA ORDER_FILL to a Nautilus OrderFilled event."""
         instrument_id = parse_instrument_id(data.get("instrument", ""))
         fill_price = Decimal(data.get("price", "0"))
         units = abs(int(data.get("units", "0")))
         pl = Decimal(data.get("pl", "0"))
         commission = Decimal(data.get("commission", "0"))
         timestamp = parse_datetime(data.get("time", ""))
-
-        # Determine price precision from the fill price string
-        price_str = data.get("price", "0")
-        precision = len(price_str.split(".")[-1]) if "." in price_str else 0
 
         # Determine the quote currency from the instrument (e.g. EUR_USD -> USD)
         parts = data.get("instrument", "_").split("_")
@@ -216,7 +311,7 @@ class OandaExecutionClient(LiveExecutionClient):
             order_side=order.side,
             order_type=order.order_type,
             last_qty=Quantity(units, precision=0),
-            last_px=Price(fill_price, precision=precision),
+            last_px=Price.from_str(str(fill_price)),  # Use factory method
             currency=Currency.from_str(quote_ccy),
             commission=Money(commission, Currency.from_str(quote_ccy)),
             liquidity_side=LiquiditySide.TAKER,  # Assumed TAKER for market orders
@@ -365,6 +460,10 @@ class OandaExecutionClient(LiveExecutionClient):
             self._log.info(f"Cancel request sent for {oanda_order_id}: {response}")
         except Exception as e:
             self._log.error(f"Cancel request failed for {oanda_order_id}: {e}")
+        """Generate account status reports (Reconciliation)."""
+        # Kept for compatibility if called, but relying on AccountState for registration.
+        # Returning empty list to avoid import errors if AccountStatusReport is removed/missing.
+        return []
 
     async def generate_order_status_reports(self, command) -> list[OrderStatusReport]:
         """Fetch open orders and generate status reports (Reconciliation)."""
@@ -404,11 +503,7 @@ class OandaExecutionClient(LiveExecutionClient):
 
                 # Price
                 price_str = o_data.get("price")
-                price = (
-                    Price(Decimal(price_str), precision=len(price_str.split(".")[-1]))
-                    if price_str
-                    else None
-                )
+                price = Price.from_str(price_str) if price_str else None
 
                 # Order Type Mapping
                 type_str = o_data.get("type", "MARKET")
@@ -437,6 +532,7 @@ class OandaExecutionClient(LiveExecutionClient):
 
         except Exception as e:
             self._log.error(f"Failed to generate order status reports: {e}")
+            traceback.print_exc()  # Print to stdout/stderr
 
         return reports
 
@@ -445,12 +541,7 @@ class OandaExecutionClient(LiveExecutionClient):
         return []
 
     async def generate_position_status_reports(self, command) -> list[PositionStatusReport]:
-        """Generate position reports by fetching open positions from OANDA (Reconciliation).
-
-        Queries the OANDA V20 OpenPositions endpoint, computes the net position
-        for each instrument, and produces a PositionStatusReport for the engine
-        to reconcile its internal state on startup or reconnect.
-        """
+        """Generate position reports by fetching open positions from OANDA (Reconciliation)."""
         reports = []
         try:
             r = positions.OpenPositions(self._account_id)
@@ -483,12 +574,13 @@ class OandaExecutionClient(LiveExecutionClient):
                     report_id=UUID4(),
                     ts_last=self._clock.timestamp_ns(),
                     ts_init=self._clock.timestamp_ns(),
-                    venue_position_id=PositionId(instrument_id.value),
-                    avg_px_open=Decimal(avg_px_str),
+                    venue_position_id=None,
+                    avg_px_open=Price.from_str(avg_px_str),
                 )
                 reports.append(report)
 
         except Exception as e:
             self._log.error(f"Failed to generate position status reports: {e}")
+            traceback.print_exc()
 
         return reports

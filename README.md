@@ -201,6 +201,7 @@ If all pass locally with zero errors, CI will also pass.
 - [x] Model → Live Engine Bridge (deploy .joblib models to NautilusTrader)
 - [x] Gaussian Channel Strategy (Ehlers filter + Numba + VBT optimisation)
 - [x] Adapter Reconciliation (position sync on engine restart)
+- [x] Live Trading Execution (Verified Entry/Exit/Reconciliation)
 - [x] Data Client Streaming Fix (4 bugs in subscribe/parse/publish pipeline)
 - [ ] Configure Slack Alerts for live trading monitoring
 - [ ] VectorBT Pro upgrade for production-scale mining

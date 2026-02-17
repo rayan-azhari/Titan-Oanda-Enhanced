@@ -30,12 +30,13 @@ class OandaInstrumentProvider(InstrumentProvider):
     def load_all(self) -> List[CurrencyPair]:
         """Fetch all available instruments with retries."""
         r = accounts.AccountInstruments(accountID=self._account_id)
-        
+
         # Retry mechanism for OANDA connection
         max_retries = 5
-        import time
         import logging
         import socket
+        import time
+
         logger = logging.getLogger(__name__)
 
         default_timeout = socket.getdefaulttimeout()
@@ -52,8 +53,8 @@ class OandaInstrumentProvider(InstrumentProvider):
                 if attempt == max_retries:
                     socket.setdefaulttimeout(default_timeout)
                     raise e
-                time.sleep(2 * attempt) # Exponential backoff
-        
+                time.sleep(2 * attempt)  # Exponential backoff
+
         socket.setdefaulttimeout(default_timeout)
 
         instruments = r.response.get("instruments", [])

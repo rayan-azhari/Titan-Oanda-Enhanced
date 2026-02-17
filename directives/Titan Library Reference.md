@@ -115,15 +115,16 @@ def account_id(self) -> AccountId:
     return AccountId(f"OANDA-{self._account_id}")
 ```
 
-###### Reconciliation (Startup State)
-When the engine starts (or reconnects), it must reconcile its internal state with OANDA to avoid duplicate trades or ghost positions. Two methods handle this:
+###### ⚠️ OmsType Configuration
+**Crucial:** You must configure the `LiveExecEngineConfig` with `oms_type=OmsType.NETTING`. OANDA does not support distinct position IDs (Hedging mode) in a way compatible with Nautilus's default tracking.
 
-**Order Reconciliation — `generate_order_status_reports`**
--   **Logic:**
-    1.  Fetches all `PENDING` orders from OANDA REST API.
-    2.  Filters for orders with `clientExtensions.id` (checking if they belong to Nautilus).
-    3.  Maps OANDA string fields to Nautilus Enums (see below).
-    4.  Returns a list of `OrderStatusReport` objects.
+###### Reconciliation (Startup State)
+When the engine starts (or reconnects), it must reconcile its internal state with OANDA to avoid duplicate trades or ghost positions.
+
+**Connection Sequence (`_connect`)**
+1.  **Account State:** Calls `_update_account_state()` to emit the `AccountState` event. This must happen *before* streaming starts to avoid "No account found" errors.
+2.  **Position Reconciliation:** Calls `_update_positions_state()` to fetch open positions and emit `PositionStatusReport`s.
+3.  **Stream Start:** Only then does `_stream_transactions()` begin.
 
 **Position Reconciliation — `generate_position_status_reports`**
 -   **Endpoint:** `oandapyV20.endpoints.positions.OpenPositions`
@@ -136,8 +137,7 @@ When the engine starts (or reconnects), it must reconcile its internal state wit
         - `Quantity(abs(net_units))` — Nautilus requires unsigned quantities.
         - `avg_px_open` from the dominant side's `averagePrice`.
     5.  Flat positions (net = 0) are skipped.
--   **Error Handling:** API failures are caught and logged; an empty list is returned.
--   **Tests:** 6 unit tests in `tests/test_oanda_reconciliation.py`.
+-   **Error Handling:** API failures are caught and logs error; an empty list is returned.
 
 ###### Enum Mapping
 OANDA returns strings; Nautilus expects Enums.

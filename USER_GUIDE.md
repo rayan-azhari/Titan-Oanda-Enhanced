@@ -475,6 +475,12 @@ A: Your Token is wrong or expired. Generate a new one on the OANDA website and u
 **Q: "AttributeError: 'NoneType' object has no attribute 'value'" (Crash on start)**
 A: This usually means the `account_id` wasn't set correctly in the Execution Client. Ensure your `.env` has the correct `OANDA_ACCOUNT_ID`.
 
+**Q: "LiveExecutionClient: No account found for ID..."**
+A: This means the `AccountState` event wasn't received before the strategy started. We fixed this by ensuring `_connect()` awaits the initial account state update. If it persists, restart the script.
+
+**Q: "Order not found" or "AttributeError ... _handle_event"**
+A: Ensure you are using `OmsType.NETTING` in your `LiveExecEngineConfig`. OANDA requires Netting mode because it doesn't support distinct position IDs per trade. Also verify `execution.py` has all event handlers restored.
+
 **Q: "TypeError: Cannot convert OandaDataClient..."**
 A: This is an internal adapter error. It means the Data Client class isn't inheriting from `MarketDataClient`. This should be fixed in the latest version.
 
