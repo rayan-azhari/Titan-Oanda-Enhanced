@@ -482,6 +482,12 @@ A: This usually means the `account_id` wasn't set correctly in the Execution Cli
 **Q: "LiveExecutionClient: No account found for ID..."**
 A: This means the `AccountState` event wasn't received before the strategy started. We fixed this by ensuring `_connect()` awaits the initial account state update. If it persists, restart the script.
 
+**Q: "TypeError: Argument 'account_id' has incorrect type"**
+A: You are passing a string (e.g., "001") where a `AccountId` object is expected. Use `self.cache.accounts()[0]` to get the valid account object dynamically.
+
+**Q: "AttributeError: ... object has no attribute 'total'" (Balance check)**
+A: You are trying to access `account.balance.total`. This is incorrect. Use `account.balance_total().as_double()` to get the float value of your equity.
+
 **Q: "Order not found" or "AttributeError ... _handle_event"**
 A: Ensure you are using `OmsType.NETTING` in your `LiveExecEngineConfig`. OANDA requires Netting mode because it doesn't support distinct position IDs per trade. Also verify `execution.py` has all event handlers restored.
 

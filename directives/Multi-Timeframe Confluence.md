@@ -30,34 +30,32 @@ Where each $Signal_{TF} \in [-1, +1]$ is derived from:
 -   **Logic:** Size the trade *as if* it had a 2 ATR stop, but **do not place the stop**. This keeps exposure constant per unit of volatility without getting whipsawed.
 -   **Cap:** Max 5x Leverage.
 
-## Optimized Configuration (Stage 3 Results)
+## Optimized Configuration (Stage 3 Results - M5 Deployment)
 
-Through extensive parameter sweeping (Stages 1-3), the following configuration yielded a **Combined Sharpe of 1.75** on EUR/USD:
+Through extensive parameter sweeping (Stages 1-3), the following configuration yielded the best stability for the **5-Minute** deployment:
 
 ### 1. Timeframe Weights
 | Timeframe | Weight | Role |
 |---|---|---|
-| **Daily (D)** | **0.60** | **Dominant Trend Bias** (Primary Driver) |
-| **H4** | **0.25** | Swing Confirmation |
-| **H1** | **0.10** | Entry Timing (Fine-tuning) |
-| **Weekly (W)** | **0.05** | Minimal Regime Filter |
+| **H4** | **0.40** | **Dominant Trend Bias** (Primary Driver) |
+| **H1** | **0.40** | Swing Confirmation |
+| **M5** | **0.20** | Entry Trigger |
+| *D/W* | *0.00* | *Excluded (Too slow for M5 scalping)* |
 
 ### 2. Indicator Parameters
-| TF | Fast SMA | Slow SMA | RSI Period |
-|---|---|---|---|
-| **D** | 13 | 20 | 14 |
-| **H4** | 10 | 50 | 21 |
-| **H1** | 10 | 30 | 21 |
-| **W** | 13 | 21 | 10 |
+| TF | MA Type | Fast | Slow | RSI Period |
+|---|---|---|---|---|
+| **All** | **WMA** | 20 | 50 | 14 |
 
-## Performance (EUR/USD, 2005-2026)
+*Note: Determining specific periods per timeframe yielded no benefit over a robust global default.*
 
-| Metric | In-Sample (2005-2019) | Out-of-Sample (2019-2026) |
-|---|---|---|
-| **Sharpe Ratio** | 1.66 | **1.83** |
-| **Total Return** | +293% (Avg L/S) | +69% (Avg L/S) |
-| **Max Drawdown** | -8.6% | -4.2% |
-| **Parity Score** | — | **1.10 (Pass)** |
+## Performance (EUR/USD, Jan-Feb 2026)
+
+| Metric | Practice Live (2 Weeks) |
+|---|---|
+| **Return** | **+0.77%** |
+| **Drawdown** | **< 1%** |
+| **Stability** | **High** |
 
 ## Execution
 

@@ -15,13 +15,11 @@ Parameters:
 
 import sys
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple, Literal
-import itertools
+from typing import Dict, Literal
 
 import numpy as np
 import pandas as pd
 import vectorbt as vbt
-import plotly.express as px
 
 # Add project root to path
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
@@ -37,14 +35,14 @@ def load_data(pair: str, granularity: str) -> pd.DataFrame:
     path = DATA_DIR / f"{pair}_{granularity}.parquet"
     if not path.exists():
         raise FileNotFoundError(f"{path} not found")
-    
+
     df = pd.read_parquet(path)
     df["timestamp"] = pd.to_datetime(df["timestamp"], utc=True)
     df = df.set_index("timestamp")
-    
+
     for col in ["open", "high", "low", "close"]:
         df[col] = df[col].astype(float)
-        
+
     return df
 
 
@@ -60,11 +58,11 @@ def compute_ma(close: pd.Series, period: int, ma_type: Literal["SMA", "EMA", "WM
 
 
 def compute_rsa_ma_signal(
-    close: pd.Series, 
-    fast_ma: int, 
-    slow_ma: int, 
+    close: pd.Series,
+    fast_ma: int,
+    slow_ma: int,
     rsi_period: int,
-    ma_type: Literal["SMA", "EMA", "WMA"] = "SMA"
+    ma_type: Literal["SMA", "EMA", "WMA"] = "SMA",
 ) -> pd.Series:
     """Compute directional signal based on MA Crossover and RSI."""
     fast = compute_ma(close, fast_ma, ma_type)
@@ -73,10 +71,10 @@ def compute_rsa_ma_signal(
 
     # +0.5 if Fast > Slow, -0.5 if Fast < Slow
     ma_sig = np.where(fast > slow, 0.5, -0.5)
-    
+
     # +0.5 if RSI > 50, -0.5 if RSI < 50
     rsi_sig = np.where(rsi > 50, 0.5, -0.5)
-    
+
     return pd.Series(ma_sig + rsi_sig, index=close.index)
 
 
@@ -94,7 +92,7 @@ def get_portfolio_stats(pf: vbt.Portfolio) -> Dict[str, float]:
 def run_stage2_optimization(pair: str = "EUR_USD") -> None:
     """Run Stage 2 Optimization (Weights)."""
     print(f"Running MTF Strategy-5m Stage 2 Optimization for {pair}...")
-    
+
     # 1. Load Data
     try:
         m5 = load_data(pair, "M5")
@@ -109,13 +107,13 @@ def run_stage2_optimization(pair: str = "EUR_USD") -> None:
     start_dt = max(m5.index.min(), h1.index.min(), h4.index.min(), d1.index.min())
     end_dt = min(m5.index.max(), h1.index.max(), h4.index.max(), d1.index.max())
     m5 = m5.loc[start_dt:end_dt]
-    
+
     print(f"Data Range: {start_dt} to {end_dt}")
     print(f"M5 Bars: {len(m5)}")
 
     # Split IS/OOS
     split_idx = int(len(m5) * 0.70)
-    
+
     is_close = m5["close"].iloc[:split_idx]
     oos_close = m5["close"].iloc[split_idx:]
 
@@ -123,7 +121,7 @@ def run_stage2_optimization(pair: str = "EUR_USD") -> None:
     MA_TYPE = "WMA"
     THRESHOLD = 0.55
     FAST_MA, SLOW_MA, RSI_PERIOD = 20, 50, 14
-    
+
     print(f"Fixed Params: MA={MA_TYPE}, Threshold={THRESHOLD}")
 
     # Pre-calculate signals (expensive part done once)
@@ -141,9 +139,9 @@ def run_stage2_optimization(pair: str = "EUR_USD") -> None:
     # Weight Configurations to Sweep
     # Logic: Test various dominance profiles (Balanced, D1-heavy, H1-heavy, etc.)
     # Weights don't technically need to sum to 1, but we usually normalize.
-    # We will test arbitrary combinations and let the code normalize if needed, 
+    # We will test arbitrary combinations and let the code normalize if needed,
     # but for consistent threshold application, sum=1 is best.
-    
+
     weight_combos = [
         # (M5, H1, H4, D1, "Label")
         (0.1, 0.3, 0.3, 0.3, "Balanced Higher"),
@@ -155,7 +153,7 @@ def run_stage2_optimization(pair: str = "EUR_USD") -> None:
         (0.0, 0.2, 0.3, 0.5, "No M5 Noise"),
         (0.1, 0.2, 0.2, 0.5, "Balanced Trend"),
     ]
-    
+
     results = []
 
     for w_m5, w_h1, w_h4, w_d1, label in weight_combos:
@@ -165,17 +163,14 @@ def run_stage2_optimization(pair: str = "EUR_USD") -> None:
         nw_h1 = w_h1 / total_w
         nw_h4 = w_h4 / total_w
         nw_d1 = w_d1 / total_w
-        
+
         confluence_score = (
-            sig_m5 * nw_m5 +
-            sig_h1_re * nw_h1 +
-            sig_h4_re * nw_h4 +
-            sig_d1_re * nw_d1
+            sig_m5 * nw_m5 + sig_h1_re * nw_h1 + sig_h4_re * nw_h4 + sig_d1_re * nw_d1
         )
-        
+
         is_score = confluence_score.iloc[:split_idx]
         oos_score = confluence_score.iloc[split_idx:]
-        
+
         # --- IS Backtest ---
         pf_is = vbt.Portfolio.from_signals(
             is_close,
@@ -186,7 +181,7 @@ def run_stage2_optimization(pair: str = "EUR_USD") -> None:
             freq="5min",
             init_cash=10000,
             fees=0.0003,
-            slippage=0.0
+            slippage=0.0,
         )
         stats_is = get_portfolio_stats(pf_is)
 
@@ -200,27 +195,29 @@ def run_stage2_optimization(pair: str = "EUR_USD") -> None:
             freq="5min",
             init_cash=10000,
             fees=0.0003,
-            slippage=0.0
+            slippage=0.0,
         )
         stats_oos = get_portfolio_stats(pf_oos)
 
         parity = stats_oos["sharpe"] / stats_is["sharpe"] if stats_is["sharpe"] != 0 else 0
-        
-        results.append({
-            "Label": label,
-            "Weights": f"[{w_m5}, {w_h1}, {w_h4}, {w_d1}]",
-            "is_sharpe": stats_is["sharpe"],
-            "oos_sharpe": stats_oos["sharpe"],
-            "parity": parity,
-            "is_ret": stats_is["total_return"],
-            "oos_ret": stats_oos["total_return"]
-        })
+
+        results.append(
+            {
+                "Label": label,
+                "Weights": f"[{w_m5}, {w_h1}, {w_h4}, {w_d1}]",
+                "is_sharpe": stats_is["sharpe"],
+                "oos_sharpe": stats_oos["sharpe"],
+                "parity": parity,
+                "is_ret": stats_is["total_return"],
+                "oos_ret": stats_oos["total_return"],
+            }
+        )
 
     df = pd.DataFrame(results).sort_values("is_sharpe", ascending=False)
-    
+
     print("\n--- Stage 2 Results (Weights) ---")
     print(df.to_string(index=False))
-    
+
     csv_path = REPORTS_DIR / "mtf_stage2_weights.csv"
     df.to_csv(csv_path, index=False)
     print(f"\nSaved to {csv_path}")
@@ -235,6 +232,7 @@ def run_stage2_optimization(pair: str = "EUR_USD") -> None:
         print(f"   OOS Sharpe: {best['oos_sharpe']:.2f}")
     else:
         print("\n⚠️ No candidates passed parity check > 0.5")
+
 
 if __name__ == "__main__":
     run_stage2_optimization()

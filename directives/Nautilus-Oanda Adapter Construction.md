@@ -42,6 +42,24 @@ The adapter connects NautilusTrader's abstract interfaces to OANDA's v20 REST an
 - Configures `TradingNode` with the custom adapter components.
 - Loads instruments and starts the event loop.
 
+## Known API Patterns (Crucial for Strategy Dev)
+These patterns must be used to avoid crashes in the live environment:
+
+1.  **Account Retrieval**:
+    - **Bad**: `cache.account("001")` (Hardcoded string)
+    - **Good**: `list(cache.accounts())[0]` (Dynamic lookup)
+    - *Reason*: OANDA account IDs change per sub-account and environment.
+
+2.  **Balance/Equity Access**:
+    - **Bad**: `account.balance.total` (AttributeError)
+    - **Good**: `float(account.balance_total().as_double())`
+    - *Reason*: `Account` exposes balance via methods returning `Money` objects, not simple properties.
+
+3.  **Position Lookup**:
+    - **Bad**: `cache.position("EUR/USD...")`
+    - **Good**: `cache.positions(instrument_id=...)`
+    - *Reason*: Position IDs are UUIDs, not instrument strings.
+
 ## Validation
 
 - **Environment:** Requires `nautilus_trader` (Rust extension). verified installed.

@@ -65,7 +65,7 @@ def _setup_logging() -> logging.Logger:
     ch = logging.StreamHandler()
     ch.setFormatter(fmt)
     root_logger.addHandler(ch)
-    
+
     # Return specific logger for the script's own messages
     return logging.getLogger("titan.nautilus")
 
@@ -93,7 +93,7 @@ def main():
         download_script = PROJECT_ROOT / "scripts" / "download_data.py"
         # Download necessary TFs for EUR_USD
         # Logic: We need M5, H1, H4, D for correct warmup.
-        # But download_data.py downloads ALL granularities by default if not specified? 
+        # But download_data.py downloads ALL granularities by default if not specified?
         # Or we loop. Let's just run it for EUR_USD and hope the default config includes them.
         # The default config in instruments.toml does include M5, H1, H4, D.
         subprocess.check_call([sys.executable, str(download_script), "--instrument", "EUR_USD"])
@@ -139,23 +139,37 @@ def main():
     # 5. Register Clients
     class LiveOandaDataFactory(LiveDataClientFactory):
         conf = data_config
+
         @classmethod
         def create(cls, loop, msgbus, cache, clock, name, **kwargs):
             return OandaDataClient(
-                loop=loop, client_id=ClientId("OANDA-DATA"), venue=Venue("OANDA"),
-                config=cls.conf, msgbus=msgbus, cache=cache, clock=clock,
+                loop=loop,
+                client_id=ClientId("OANDA-DATA"),
+                venue=Venue("OANDA"),
+                config=cls.conf,
+                msgbus=msgbus,
+                cache=cache,
+                clock=clock,
             )
 
     class LiveOandaExecutionFactory(LiveExecClientFactory):
         conf = exec_config
         prov = provider
+
         @classmethod
         def create(cls, loop, msgbus, cache, clock, name, **kwargs):
             return OandaExecutionClient(
-                loop=loop, client_id=ClientId("OANDA-EXEC"), venue=Venue("OANDA"),
-                oms_type=OmsType.NETTING, account_type=AccountType.MARGIN,
-                base_currency=None, instrument_provider=cls.prov, config=cls.conf,
-                msgbus=msgbus, cache=cache, clock=clock,
+                loop=loop,
+                client_id=ClientId("OANDA-EXEC"),
+                venue=Venue("OANDA"),
+                oms_type=OmsType.NETTING,
+                account_type=AccountType.MARGIN,
+                base_currency=None,
+                instrument_provider=cls.prov,
+                config=cls.conf,
+                msgbus=msgbus,
+                cache=cache,
+                clock=clock,
             )
 
     node.add_data_client_factory("OANDA", LiveOandaDataFactory)

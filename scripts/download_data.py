@@ -70,16 +70,16 @@ def main() -> None:
             # Actually, config defines granularities too. Let's just filter list if it exists, or add it if valid?
             # Simplest: Filter existing list.
             if args.instrument not in pairs:
-                 print(f"❌ Error: Instrument {args.instrument} not in instruments.toml")
-                 sys.exit(1)
+                print(f"❌ Error: Instrument {args.instrument} not in instruments.toml")
+                sys.exit(1)
             pairs = [args.instrument]
 
     if args.granularity:
         if args.granularity in granularities:
             granularities = [args.granularity]
         else:
-             print(f"❌ Error: Granularity {args.granularity} not in instruments.toml")
-             sys.exit(1)
+            print(f"❌ Error: Granularity {args.granularity} not in instruments.toml")
+            sys.exit(1)
 
     print(f"📥 Downloading data for {len(pairs)} pairs × {len(granularities)} granularities\n")
 

@@ -110,7 +110,7 @@ class MTFConfluenceStrategy(Strategy):
             spec = bt.spec
             agg = spec.aggregation
             interval = spec.step
-            
+
             # Robust extraction of aggregation string
             agg_str = str(agg)
             # Handle enum objects like Aggregation.MINUTE
@@ -118,7 +118,7 @@ class MTFConfluenceStrategy(Strategy):
                 agg_str = agg.name
             elif hasattr(agg, "value"):
                 agg_str = str(agg.value)
-            
+
             agg_str = agg_str.upper()
 
             suffix = "UNKNOWN"
@@ -137,18 +137,18 @@ class MTFConfluenceStrategy(Strategy):
                 suffix = "D"
             elif "WEEK" in agg_str:
                 suffix = "W"
-            
+
             # Additional Fallback based on BarType string (e.g. "EUR/USD-5-MINUTE-MID-INTERNAL")
             if suffix == "UNKNOWN":
-                 bt_str = str(bt).upper()
-                 if "5-MINUTE" in bt_str:
-                     suffix = "M5"
-                 elif "1-HOUR" in bt_str:
-                     suffix = "H1"
-                 elif "4-HOUR" in bt_str:
-                     suffix = "H4"
-                 elif "1-DAY" in bt_str:
-                     suffix = "D"
+                bt_str = str(bt).upper()
+                if "5-MINUTE" in bt_str:
+                    suffix = "M5"
+                elif "1-HOUR" in bt_str:
+                    suffix = "H1"
+                elif "4-HOUR" in bt_str:
+                    suffix = "H4"
+                elif "1-DAY" in bt_str:
+                    suffix = "D"
 
             if suffix == "UNKNOWN":
                 msg = f"Unknown BarType spec usage: {bt} (Agg: {agg_str}, Interval: {interval})"
@@ -228,7 +228,7 @@ class MTFConfluenceStrategy(Strategy):
         fast_p = params.get("fast_ma", 10)
         slow_p = params.get("slow_ma", 20)
         rsi_p = params.get("rsi_period", 14)
-        
+
         # Determine MA Type (default SMA for backward compat)
         ma_type = self.toml_cfg.get("ma_type", "SMA").upper()
 
@@ -239,10 +239,10 @@ class MTFConfluenceStrategy(Strategy):
         elif ma_type == "WMA":
             s_fast = wma(close, fast_p)
             s_slow = wma(close, slow_p)
-        else: # SMA
+        else:  # SMA
             s_fast = sma(close, fast_p)
             s_slow = sma(close, slow_p)
-            
+
         r = rsi(close, rsi_p)
 
         # Store ATR if this is H1 (for sizing)
@@ -420,7 +420,8 @@ class MTFConfluenceStrategy(Strategy):
         # Units = (Equity * Risk%) / (2 * ATR)
 
         # Get Account (Dynamic lookup)
-        # In live mode, we should look for the account associated with the execution client or just grab the first one.
+        # In live mode, we should look for the account associated
+        # with the execution client or just grab the first one.
         # self.cache.accounts() returns a list of Account objects directly.
         accounts = self.cache.accounts()
         if not accounts:
@@ -428,7 +429,7 @@ class MTFConfluenceStrategy(Strategy):
             return
 
         account = accounts[0]
-        
+
         # Use balance_total() to get Money object, then cast to float
         # This includes free + locked (Equity)
         equity_money = account.balance_total()
